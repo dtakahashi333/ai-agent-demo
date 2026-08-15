@@ -24,16 +24,19 @@ tools = [
         "type": "function",
         "function": {
             "name": "calculator",
-            "description": "Perform mathematical calculations.",
+            "description": "Perform a mathematical operation on two numbers.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "expression": {
+                    "a": {"type": "number", "description": "The first number."},
+                    "b": {"type": "number", "description": "The second number."},
+                    "operation": {
                         "type": "string",
-                        "description": "The mathematical expression to calculate.",
-                    }
+                        "enum": ["add", "subtract", "multiply", "divide"],
+                        "description": "The mathematical operation to perform.",
+                    },
                 },
-                "required": ["expression"],
+                "required": ["a", "b", "operation"],
                 "additionalProperties": False,
             },
         },
@@ -112,25 +115,54 @@ client = OpenAI(
 
 
 def run_agent(query: str) -> str:
-    response = client.chat.completions.create(
-        # This example uses qwen-plus. You can replace it with another model name as needed. Model list: https://www.alibabacloud.com/help/en/model-studio/getting-started/models
-        model="qwen-plus",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": query},
-        ],
-        tools=tools,
-        # extra_body={"enable_thinking": False},
-    )
+    # response = client.chat.completions.create(
+    #     # This example uses qwen-plus. You can replace it with another model name as needed. Model list: https://www.alibabacloud.com/help/en/model-studio/getting-started/models
+    #     model="qwen-plus",
+    #     messages=[
+    #         {"role": "system", "content": SYSTEM_PROMPT},
+    #         {"role": "user", "content": query},
+    #     ],
+    #     tools=tools,
+    #     # extra_body={"enable_thinking": False},
+    # )
+
+    # print(response.model_dump_json())
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": query},
+    ]
+
+    response = call_llm(messages)
+    message = response.choices[0].message
 
     print(response.model_dump_json())
 
-    message = response.choices[0].message
+    while message.tool_calls:
 
-    tool_calls = message.tool_calls
+        # First: record what the assistant requested
+        messages.append(message)
 
-    if tool_calls:
-        result = execute_tool_call(tool_calls[0])
+        # Then: execute each requested tool
+        results = []
+        for tool_call in message.tool_calls:
+            result = execute_tool_call(tool_call)
+            results.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(result),
+                }
+            )
+
+        messages += results
+
+        # Ask the LLM what to do next
+        response = call_llm(messages)
+        message = response.choices[0].message
+
+        print(response.model_dump_json())
+
+    return message.content
 
 
 def call_llm(messages: list[any]) -> dict:
@@ -157,35 +189,3 @@ def execute_tool_call(tool_call) -> dict:
     print(result)
 
     return result
-
-
-def run_second_agent(query: str, message: str, tool_call: str) -> str:
-    response = client.chat.completions.create(
-        # This example uses qwen-plus. You can replace it with another model name as needed. Model list: https://www.alibabacloud.com/help/en/model-studio/getting-started/models
-        model="qwen-plus",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": query},
-            # The assistant's previous response containing the tool call
-            message,
-            # The result of executing that tool call
-            {
-                "role": "tool",
-                "tool_call_id": tool_call["id"],
-                "content": json.dumps(tool_call["result"]),
-            },
-        ],
-        tools=tools,
-        # extra_body={"enable_thinking": False},
-    )
-
-    print(response.model_dump_json())
-
-    message = response.choices[0].message
-
-    print(message)
-
-    # tool_calls = message.tool_calls
-
-    # if tool_calls:
-    #     execute_tool_call(tool_calls[0])
