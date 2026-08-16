@@ -254,6 +254,29 @@ RETRYABLE_ERRORS = {
     "temporary_database_error",
 }
 
+repeated_tool_call_error = {
+    "success": False,
+    "data": None,
+    "error": {
+        "type": "repeated_tool_call",
+        "message": "The same tool call was already attempted and failed. Do not repeat it; change the approach.",
+    },
+}
+
+
+"""
+| Situation                                         | Action  |
+|---------------------------------------------------|---------|
+| First invalid_arguments call                      | Execute |
+| Identical invalid_arguments call later            | Block   | 
+| Identical call in same response after first fails | Block   |
+| Successful call repeated                          | Allow   |
+| not_found repeated                                | Allow   |
+| database_error repeated                           | Allow   |
+| Different arguments                               | Allow   |
+| Different tool                                    | Allow   |
+"""
+
 
 def run_agent(query: str, max_iterations: int = 10) -> str:
 
@@ -268,6 +291,8 @@ def run_agent(query: str, max_iterations: int = 10) -> str:
     print(response.model_dump_json())
 
     counter = 0
+    seen_failed_tool_calls = set()
+
     while message.tool_calls and counter < max_iterations:
 
         counter += 1
@@ -277,16 +302,36 @@ def run_agent(query: str, max_iterations: int = 10) -> str:
 
         # Then: execute each requested tool
         results = []
-        for tool_call in message.tool_calls:
-            result = execute_tool_call(tool_call)
 
-            results.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call.id,
-                    "content": json.dumps(result),
-                }
-            )
+        for tool_call in message.tool_calls:
+
+            signature = make_tool_call_signature(tool_call)
+
+            if signature not in seen_failed_tool_calls:
+
+                result = execute_tool_call(tool_call)
+
+                results.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(result),
+                    }
+                )
+
+                if (
+                    result["success"] == False
+                    and result["error"]["type"] == "invalid_arguments"
+                ):
+                    seen_failed_tool_calls.add(signature)
+            else:
+                results.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(repeated_tool_call_error),
+                    }
+                )
 
         messages += results
 
@@ -302,14 +347,36 @@ def run_agent(query: str, max_iterations: int = 10) -> str:
     return message.content
 
 
-def call_llm(messages: list[any]) -> dict:
+def make_tool_call_signature(tool_call) -> tuple:
+    print(type(tool_call.function.arguments))
+    print(tool_call.function.arguments)
+    # Deserialization = serialized representation → usable Python object
+    arguments = json.loads(tool_call.function.arguments)
+    # Sort JSON keys so equivalent arguments produce the same signature.
+    # Serialization = Python object → format suitable for storage/transmission
+    return (tool_call.function.name, json.dumps(arguments, sort_keys=True))
+
+
+def call_llm(messages: list[any], tool_choice=None) -> dict:
     return client.chat.completions.create(
         # This example uses qwen-plus. You can replace it with another model name as needed. Model list: https://www.alibabacloud.com/help/en/model-studio/getting-started/models
         model="qwen-plus",
         messages=messages,
         tools=tools,
+        tool_choice=tool_choice,
         # extra_body={"enable_thinking": False},
     )
+    # return client.chat.completions.create(
+    #     model="qwen-plus",
+    #     messages=messages,
+    #     tools=tools,
+    #     tool_choice={
+    #         "type": "function",
+    #         "function": {
+    #             "name": "get_customer",
+    #         },
+    #     },
+    # )
 
 
 def execute_tool_call(
@@ -329,9 +396,6 @@ def execute_tool_call(
                 "message": "Tool arguments contain invalid JSON",
             },
         }
-
-    print(tool_name)
-    print(arguments)
 
     validation_result = validate_arguments(tool_name, arguments)
 
