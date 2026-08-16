@@ -1,6 +1,9 @@
 # agent.py
 import os
 import json
+from time import time
+from jsonschema import validate
+from jsonschema.exceptions import ValidationError
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -185,6 +188,55 @@ tool_functions = {
     "get_customer_orders": get_customer_orders,
 }
 
+tool_config = {
+    "calculator": {"retryable": True},
+    "search_documents": {"retryable": True},
+    "get_weather": {"retryable": True},
+    "get_customer": {"retryable": True},
+    "get_order": {"retryable": True},
+    "get_order_status": {"retryable": True},
+    "search_customers": {"retryable": True},
+    "get_customer_orders": {"retryable": True},
+}
+
+tool_schemas = {
+    "get_weather": {
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "city": {"type": "string", "description": "The name of the city."}
+            },
+            "required": ["city"],
+            "additionalProperties": False,
+        },
+    },
+    "get_customer": {
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "customer_id": {
+                    "type": "integer",
+                    "description": "The unique ID of the customer.",
+                }
+            },
+            "required": ["customer_id"],
+            "additionalProperties": False,
+        },
+    },
+    "search_customers": {
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The name to search for.",
+                }
+            },
+            "required": ["name"],
+            "additionalProperties": False,
+        },
+    },
+}
 
 client = OpenAI(
     # API keys vary by region. To get an API key, visit: https://www.alibabacloud.com/help/zh/model-studio/get-api-key
@@ -196,19 +248,15 @@ client = OpenAI(
 )
 
 
-def run_agent(query: str) -> str:
-    # response = client.chat.completions.create(
-    #     # This example uses qwen-plus. You can replace it with another model name as needed. Model list: https://www.alibabacloud.com/help/en/model-studio/getting-started/models
-    #     model="qwen-plus",
-    #     messages=[
-    #         {"role": "system", "content": SYSTEM_PROMPT},
-    #         {"role": "user", "content": query},
-    #     ],
-    #     tools=tools,
-    #     # extra_body={"enable_thinking": False},
-    # )
+MAX_ITERATIONS = 10
+RETRYABLE_ERRORS = {
+    "timeout",
+    "temporary_database_error",
+}
 
-    # print(response.model_dump_json())
+
+def run_agent(query: str, max_iterations: int = 10) -> str:
+
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": query},
@@ -219,7 +267,10 @@ def run_agent(query: str) -> str:
 
     print(response.model_dump_json())
 
-    while message.tool_calls:
+    counter = 0
+    while message.tool_calls and counter < max_iterations:
+
+        counter += 1
 
         # First: record what the assistant requested
         messages.append(message)
@@ -228,6 +279,7 @@ def run_agent(query: str) -> str:
         results = []
         for tool_call in message.tool_calls:
             result = execute_tool_call(tool_call)
+
             results.append(
                 {
                     "role": "tool",
@@ -244,6 +296,9 @@ def run_agent(query: str) -> str:
 
         print(response.model_dump_json())
 
+    if message.tool_calls:
+        return "Agent stopped because the maximum iteration limit was reached."
+
     return message.content
 
 
@@ -257,17 +312,162 @@ def call_llm(messages: list[any]) -> dict:
     )
 
 
-def execute_tool_call(tool_call) -> dict:
+def execute_tool_call(
+    tool_call, max_retries: int = 1, retry_delay: float = 1.0
+) -> dict:
+
     tool_name = tool_call.function.name
-    arguments = json.loads(tool_call.function.arguments)
+
+    try:
+        arguments = json.loads(tool_call.function.arguments)
+    except json.JSONDecodeError:
+        return {
+            "success": False,
+            "data": None,
+            "error": {
+                "type": "invalid_arguments",
+                "message": "Tool arguments contain invalid JSON",
+            },
+        }
 
     print(tool_name)
     print(arguments)
 
+    validation_result = validate_arguments(tool_name, arguments)
+
+    if not validation_result["success"]:
+        return validation_result
+
+    if tool_name not in tool_functions:
+        return {
+            "success": False,
+            "data": None,
+            "error": {
+                "type": "unknown_tool",
+                "message": f"Unknown tool: {tool_name}",
+            },
+        }
+
     function = tool_functions[tool_name]
 
-    result = function(**arguments)
+    try:
+        for attempt in range(max_retries + 1):
 
-    print(result)
+            result = function(**arguments)
 
-    return result
+            print(result)
+
+            if result["success"]:
+                return result
+
+            if result["error"]["type"] != "database_error":
+                return result
+
+            if not tool_config[tool_name]["retryable"]:
+                return result
+
+            if attempt < max_retries:
+                time.sleep(retry_delay)
+
+        return result
+    except Exception:
+        return {
+            "success": False,
+            "data": None,
+            "error": {
+                "type": "tool_execution_error",
+                "message": "Tool execution failed",
+            },
+        }
+
+
+def validate_arguments(tool_name: str, arguments: dict) -> dict:
+    # # Manual implementation
+    # schema = tool_schemas[tool_name]["parameters"]
+
+    # properties = schema.get("properties", {})
+    # required = schema.get("required", [])
+    # additional_properties = schema.get("additionalProperties", True)
+
+    # # Check required arguments
+    # missing = [name for name in required if name not in arguments]
+
+    # if missing:
+    #     return {
+    #         "success": False,
+    #         "data": None,
+    #         "error": {
+    #             "type": "invalid_arguments",
+    #             "message": f"{missing[0]} is required",
+    #         },
+    #     }
+
+    # # Validate supplied arguments
+    # for name, value in arguments.items():
+
+    #     # Unknown property
+    #     if name not in properties:
+    #         if not additional_properties:
+    #             return {
+    #                 "success": False,
+    #                 "data": None,
+    #                 "error": {
+    #                     "type": "invalid_arguments",
+    #                     "message": f"{name} is not allowed",
+    #                 },
+    #             }
+
+    #         # Additional properties are allowed,
+    #         # so there is no schema to validate against.
+    #         continue
+
+    #     schema_type = properties[name].get("type")
+
+    #     if schema_type == "integer":
+    #         if not isinstance(value, int) or isinstance(value, bool):
+    #             return {
+    #                 "success": False,
+    #                 "data": None,
+    #                 "error": {
+    #                     "type": "invalid_arguments",
+    #                     "message": f"{name} must be an integer",
+    #                 },
+    #             }
+
+    #     elif schema_type == "string":
+    #         if not isinstance(value, str):
+    #             return {
+    #                 "success": False,
+    #                 "data": None,
+    #                 "error": {
+    #                     "type": "invalid_arguments",
+    #                     "message": f"{name} must be a string",
+    #                 },
+    #             }
+
+    # return {
+    #     "success": True,
+    #     "data": None,
+    #     "error": None,
+    # }
+
+    schema = tool_schemas[tool_name]["parameters"]
+
+    try:
+        validate(instance=arguments, schema=schema)
+
+        return {
+            "success": True,
+            "data": None,
+            "error": None,
+        }
+
+    except ValidationError as e:
+        return {
+            "success": False,
+            "data": None,
+            "error": {
+                "type": "invalid_arguments",
+                "message": e.message,
+            },
+        }
