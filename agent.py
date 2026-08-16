@@ -205,7 +205,10 @@ tool_schemas = {
         "parameters": {
             "type": "object",
             "properties": {
-                "city": {"type": "string", "description": "The name of the city."}
+                "city": {
+                    "type": "string",
+                    "description": "The name of the city.",
+                }
             },
             "required": ["city"],
             "additionalProperties": False,
@@ -218,7 +221,7 @@ tool_schemas = {
                 "customer_id": {
                     "type": "integer",
                     "description": "The unique ID of the customer.",
-                }
+                },
             },
             "required": ["customer_id"],
             "additionalProperties": False,
@@ -231,7 +234,7 @@ tool_schemas = {
                 "name": {
                     "type": "string",
                     "description": "The name to search for.",
-                }
+                },
             },
             "required": ["name"],
             "additionalProperties": False,
@@ -271,15 +274,6 @@ duplicate_tool_call_error = {
     "error": {
         "type": "duplicate_tool_call",
         "message": "This exact tool call was already requested in the current tool-call batch.",
-    },
-}
-# there are more results than the allowed maximum
-too_many_results_error = {
-    "success": False,
-    "data": None,
-    "error": {
-        "type": "too_many_results",
-        "message": "The search matched too many customers. Please provide more specific information.",
     },
 }
 

@@ -3,6 +3,16 @@ from typing import Optional
 
 import psycopg
 
+# there are more results than the allowed maximum
+too_many_results_error = {
+    "success": False,
+    "data": None,
+    "error": {
+        "type": "too_many_results",
+        "message": "The search matched too many customers. Please provide more specific information.",
+    },
+}
+
 
 def get_customer(customer_id: int) -> dict:
     try:
@@ -157,6 +167,19 @@ def get_order_status(order_id: int) -> dict:
         }
 
 
+"""
+| Tool result                | Meaning                    | Typical agent behavior                        |
+|----------------------------|----------------------------|-----------------------------------------------|
+| not_found                  | Nothing matched            | Inform user / possibly try a different search |
+| success + 1 result         | Unambiguous                | Continue                                      |
+| success + multiple results | Potentially ambiguous      | Clarify                                       |
+| too_many_results           | Search exceeded tool limit | Ask for more specific criteria                |
+| database_error             | Tool infrastructure failed | Apply error/retry policy                      |
+"""
+
+MAX_MATCHES = 50
+
+
 def search_customers(name: str) -> dict:
     try:
         with psycopg.connect(
@@ -169,11 +192,29 @@ def search_customers(name: str) -> dict:
                     SELECT id, name, email, plan
                     FROM agent.customers
                     WHERE name ILIKE %s
+                    ORDER BY id
+                    LIMIT %s
                     """,
-                    (f"%{name}%",),
+                    (
+                        f"%{name}%",
+                        MAX_MATCHES + 1,
+                    ),
                 )
 
                 result = cursor.fetchall()
+
+                if len(result) > MAX_MATCHES:
+                    return {
+                        "success": False,
+                        "data": None,
+                        "error": {
+                            "type": "too_many_results",
+                            "message": (
+                                "The search matched too many customers. "
+                                "Please provide more specific information."
+                            ),
+                        },
+                    }
 
                 if not result:
                     return {
