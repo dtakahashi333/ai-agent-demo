@@ -5,7 +5,13 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 from tools.calculator import calculator
-from tools.database import get_customer
+from tools.database import (
+    get_customer,
+    get_customer_orders,
+    get_order,
+    get_order_status,
+    search_customers,
+)
 from tools.rag import search_documents
 from tools.weather import get_weather
 
@@ -92,6 +98,78 @@ tools = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_order",
+            "description": "Retrieve an order using its order ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the order.",
+                    }
+                },
+                "required": ["order_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_order_status",
+            "description": "Retrieve the current status of an order using its order ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the order.",
+                    }
+                },
+                "required": ["order_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_customers",
+            "description": "Search for customers by name. Returns all customers whose names contain the search term.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The customer's name or part of their name to search for.",
+                    }
+                },
+                "required": ["name"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_customer_orders",
+            "description": "Retrieve all orders belonging to a customer using the customer ID.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "customer_id": {
+                        "type": "integer",
+                        "description": "The unique ID of the customer.",
+                    }
+                },
+                "required": ["customer_id"],
+                "additionalProperties": False,
+            },
+        },
+    },
 ]
 
 
@@ -101,6 +179,10 @@ tool_functions = {
     "search_documents": search_documents,
     "get_weather": get_weather,
     "get_customer": get_customer,
+    "get_order": get_order,
+    "get_order_status": get_order_status,
+    "search_customers": search_customers,
+    "get_customer_orders": get_customer_orders,
 }
 
 
