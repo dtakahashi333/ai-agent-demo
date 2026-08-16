@@ -6,6 +6,7 @@ from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 from openai import OpenAI
 from dotenv import load_dotenv
+from types import SimpleNamespace
 
 from tools.calculator import calculator
 from tools.database import (
@@ -254,6 +255,7 @@ RETRYABLE_ERRORS = {
     "temporary_database_error",
 }
 
+# same invalid call was already attempted
 repeated_tool_call_error = {
     "success": False,
     "data": None,
@@ -262,7 +264,34 @@ repeated_tool_call_error = {
         "message": "The same tool call was already attempted and failed. Do not repeat it; change the approach.",
     },
 }
+# same call appeared twice in the same response
+duplicate_tool_call_error = {
+    "success": False,
+    "data": None,
+    "error": {
+        "type": "duplicate_tool_call",
+        "message": "This exact tool call was already requested in the current tool-call batch.",
+    },
+}
+# there are more results than the allowed maximum
+too_many_results_error = {
+    "success": False,
+    "data": None,
+    "error": {
+        "type": "too_many_results",
+        "message": "The search matched too many customers. Please provide more specific information.",
+    },
+}
 
+"""
+| Result            | Meaning                                                     |
+| ------------------|-------------------------------------------------------------|
+| success           | Useful information was obtained                             |
+| invalid_arguments | The requested action was invalid                            |
+| not_found         | The action was valid, but the requested entity wasn't found |
+| database_error    | Infrastructure failed                                       |
+| timeout           | Infrastructure may have failed temporarily                  |
+"""
 
 """
 | Situation                                         | Action  |
@@ -277,18 +306,35 @@ repeated_tool_call_error = {
 | Different tool                                    | Allow   |
 """
 
+"""
+| Situation                              | Action          |
+|----------------------------------------|-----------------|
+| Same invalid call in later iteration   | Block           |
+| Same call twice in one response        | Block duplicate |
+| Same not_found call in later iteration | Allow           |
+| New arguments                          | Allow           |
+| New tool                               | Allow           |
+"""
 
-def run_agent(query: str, max_iterations: int = 10) -> str:
+
+def run_agent(
+    query: str,
+    max_iterations: int = 10,
+    llm_call=None,
+) -> str:
+
+    if llm_call is None:
+        llm_call = call_llm
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": query},
     ]
 
-    response = call_llm(messages)
+    response = llm_call(messages)
     message = response.choices[0].message
 
-    print(response.model_dump_json())
+    # print(response.model_dump_json())
 
     counter = 0
     seen_failed_tool_calls = set()
@@ -301,13 +347,32 @@ def run_agent(query: str, max_iterations: int = 10) -> str:
         messages.append(message)
 
         # Then: execute each requested tool
+        seen_tool_calls_in_iteration = set()
         results = []
 
         for tool_call in message.tool_calls:
 
             signature = make_tool_call_signature(tool_call)
 
-            if signature not in seen_failed_tool_calls:
+            if signature in seen_tool_calls_in_iteration:
+                results.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(duplicate_tool_call_error),
+                    }
+                )
+            elif signature in seen_failed_tool_calls:
+                results.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(repeated_tool_call_error),
+                    }
+                )
+            else:
+                # Record the call BEFORE executing it
+                seen_tool_calls_in_iteration.add(signature)
 
                 result = execute_tool_call(tool_call)
 
@@ -324,25 +389,19 @@ def run_agent(query: str, max_iterations: int = 10) -> str:
                     and result["error"]["type"] == "invalid_arguments"
                 ):
                     seen_failed_tool_calls.add(signature)
-            else:
-                results.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": json.dumps(repeated_tool_call_error),
-                    }
-                )
 
         messages += results
 
         # Ask the LLM what to do next
-        response = call_llm(messages)
+        response = llm_call(messages)
         message = response.choices[0].message
 
-        print(response.model_dump_json())
+        # print(response.model_dump_json())
 
     if message.tool_calls:
         return "Agent stopped because the maximum iteration limit was reached."
+
+    print(json.dumps(messages))
 
     return message.content
 
@@ -366,22 +425,56 @@ def call_llm(messages: list[any], tool_choice=None) -> dict:
         tool_choice=tool_choice,
         # extra_body={"enable_thinking": False},
     )
-    # return client.chat.completions.create(
-    #     model="qwen-plus",
-    #     messages=messages,
-    #     tools=tools,
-    #     tool_choice={
-    #         "type": "function",
-    #         "function": {
-    #             "name": "get_customer",
-    #         },
-    #     },
-    # )
+
+
+def mock_call_llm(messages):
+    # First LLM response: deliberately make an invalid tool call.
+    if len(messages) == 2:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=None,
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="call_1",
+                                function=SimpleNamespace(
+                                    name="get_customer",
+                                    arguments=json.dumps({"customer_id": "abc"}),
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ]
+        )
+
+    # Second LLM response: deliberately repeat the exact same call.
+    return SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content=None,
+                    tool_calls=[
+                        SimpleNamespace(
+                            id="call_2",
+                            function=SimpleNamespace(
+                                name="get_customer",
+                                arguments=json.dumps({"customer_id": "abc"}),
+                            ),
+                        )
+                    ],
+                )
+            )
+        ]
+    )
 
 
 def execute_tool_call(
     tool_call, max_retries: int = 1, retry_delay: float = 1.0
 ) -> dict:
+
+    print("EXECUTING:", tool_call.function.name)
 
     tool_name = tool_call.function.name
 
