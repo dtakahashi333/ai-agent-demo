@@ -28,166 +28,158 @@ from tools.calculator import calculator
 from tools.rag import search_documents
 from tools.weather import get_weather
 
-# Tool definitions sent to the LLM
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "calculator",
-            "description": "Perform a mathematical operation on two numbers.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "a": {"type": "number", "description": "The first number."},
-                    "b": {"type": "number", "description": "The second number."},
-                    "operation": {
-                        "type": "string",
-                        "enum": ["add", "subtract", "multiply", "divide"],
-                        "description": "The mathematical operation to perform.",
-                    },
+tool_registry = {
+    "calculator": {
+        "function": calculator,
+        "description": "Perform a mathematical operation on two numbers.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "a": {"type": "number", "description": "The first number."},
+                "b": {"type": "number", "description": "The second number."},
+                "operation": {
+                    "type": "string",
+                    "enum": ["add", "subtract", "multiply", "divide"],
+                    "description": "The mathematical operation to perform.",
                 },
-                "required": ["a", "b", "operation"],
-                "additionalProperties": False,
             },
+            "required": ["a", "b", "operation"],
+            "additionalProperties": False,
         },
+        "retryable": True,
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_documents",
-            "description": "Search the company's knowledge base for relevant information.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "The question or search query to look up in the knowledge base.",
-                    }
+    "search_documents": {
+        "function": search_documents,
+        "description": "Search the company's knowledge base for relevant information.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "The question or search query to look up in the knowledge base.",
+                }
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+        "retryable": True,
+    },
+    "get_weather": {
+        "function": get_weather,
+        "description": "Get the current weather for a city.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "city": {"type": "string", "description": "The name of the city."}
+            },
+            "required": ["city"],
+            "additionalProperties": False,
+        },
+        "retryable": True,
+    },
+    "get_customer": {
+        "function": get_customer,
+        "description": "Retrieve a customer's information using their customer ID.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "customer_id": {
+                    "type": "integer",
+                    "description": "The unique ID of the customer.",
+                }
+            },
+            "required": ["customer_id"],
+            "additionalProperties": False,
+        },
+        "retryable": True,
+    },
+    "get_order": {
+        "function": get_order,
+        "description": "Retrieve an order using its order ID.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "integer",
+                    "description": "The unique ID of the order.",
+                }
+            },
+            "required": ["order_id"],
+            "additionalProperties": False,
+        },
+        "retryable": True,
+    },
+    "get_order_status": {
+        "function": get_order_status,
+        "description": "Retrieve the current status of an order using its order ID.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "integer",
+                    "description": "The unique ID of the order.",
+                }
+            },
+            "required": ["order_id"],
+            "additionalProperties": False,
+        },
+        "retryable": True,
+    },
+    "search_customers": {
+        "function": search_customers,
+        "description": "Returns up to 5 matching customers. If more results are available, has_more is true and next_cursor contains the cursor to use as pagination_cursor in the next call.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "description": "The customer's name or part of their name to search for.",
                 },
-                "required": ["query"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Get the current weather for a city.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "city": {"type": "string", "description": "The name of the city."}
+                "pagination_cursor": {
+                    "type": "integer",
+                    "description": "The ID of the last customer from the previous page. Use this value to retrieve the next page. Omit it when requesting the first page.",
                 },
-                "required": ["city"],
-                "additionalProperties": False,
             },
+            "required": ["name"],
+            "additionalProperties": False,
         },
+        "retryable": True,
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_customer",
-            "description": "Retrieve a customer's information using their customer ID.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "customer_id": {
-                        "type": "integer",
-                        "description": "The unique ID of the customer.",
-                    }
-                },
-                "required": ["customer_id"],
-                "additionalProperties": False,
+    "get_customer_orders": {
+        "function": get_customer_orders,
+        "description": "Retrieve all orders belonging to a customer using the customer ID.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "customer_id": {
+                    "type": "integer",
+                    "description": "The unique ID of the customer.",
+                }
             },
+            "required": ["customer_id"],
+            "additionalProperties": False,
         },
+        "retryable": True,
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_order",
-            "description": "Retrieve an order using its order ID.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "order_id": {
-                        "type": "integer",
-                        "description": "The unique ID of the order.",
-                    }
-                },
-                "required": ["order_id"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_order_status",
-            "description": "Retrieve the current status of an order using its order ID.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "order_id": {
-                        "type": "integer",
-                        "description": "The unique ID of the order.",
-                    }
-                },
-                "required": ["order_id"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_customers",
-            "description": "Search for customers by name. Returns all customers whose names contain the search term.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "The customer's name or part of their name to search for.",
-                    }
-                },
-                "required": ["name"],
-                "additionalProperties": False,
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_customer_orders",
-            "description": "Retrieve all orders belonging to a customer using the customer ID.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "customer_id": {
-                        "type": "integer",
-                        "description": "The unique ID of the customer.",
-                    }
-                },
-                "required": ["customer_id"],
-                "additionalProperties": False,
-            },
-        },
-    },
-]
-
-
-# Python functions that the application can actually execute
-tool_functions = {
-    "calculator": calculator,
-    "search_documents": search_documents,
-    "get_weather": get_weather,
-    "get_customer": get_customer,
-    "get_order": get_order,
-    "get_order_status": get_order_status,
-    "search_customers": search_customers,
-    "get_customer_orders": get_customer_orders,
 }
+
+
+def build_llm_tools(tool_registry):
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": config["description"],
+                "parameters": config["parameters"],
+            },
+        }
+        for name, config in tool_registry.items()
+    ]
+
+
+# Tool definitions sent to the LLM
+tools = build_llm_tools(tool_registry)
 
 tool_config = {
     "calculator": {"retryable": True},
@@ -200,55 +192,10 @@ tool_config = {
     "get_customer_orders": {"retryable": True},
 }
 
-tool_schemas = {
-    "get_weather": {
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "city": {
-                    "type": "string",
-                    "description": "The name of the city.",
-                }
-            },
-            "required": ["city"],
-            "additionalProperties": False,
-        },
-    },
-    "get_customer": {
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "customer_id": {
-                    "type": "integer",
-                    "description": "The unique ID of the customer.",
-                },
-            },
-            "required": ["customer_id"],
-            "additionalProperties": False,
-        },
-    },
-    "search_customers": {
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "description": "The name to search for.",
-                },
-            },
-            "required": ["name"],
-            "additionalProperties": False,
-        },
-    },
-}
 
 client = OpenAI(
-    # API keys vary by region. To get an API key, visit: https://www.alibabacloud.com/help/zh/model-studio/get-api-key
-    api_key=os.getenv("DASHSCOPE_API_KEY"),
-    # The following base_url is for the Singapore region. If you use a model in the US East 1 (Virginia) region, change the base_url to https://dashscope-us.aliyuncs.com/compatible-mode/v1.
-    # If you use a model in the China (Beijing) region, change the base_url to https://dashscope.aliyuncs.com/compatible-mode/v1.
-    # base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-    base_url="https://ws-a95hgp91msvbk42j.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+    api_key=os.getenv("LLM_API_KEY"),
+    base_url=os.getenv("LLM_BASE_URL"),
 )
 
 
@@ -345,44 +292,13 @@ def run_agent(
         results = []
 
         for tool_call in message.tool_calls:
-
-            signature = make_tool_call_signature(tool_call)
-
-            if signature in seen_tool_calls_in_iteration:
-                results.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": json.dumps(duplicate_tool_call_error),
-                    }
+            results.append(
+                process_tool_call(
+                    tool_call,
+                    seen_failed_tool_calls,
+                    seen_tool_calls_in_iteration,
                 )
-            elif signature in seen_failed_tool_calls:
-                results.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": json.dumps(repeated_tool_call_error),
-                    }
-                )
-            else:
-                # Record the call BEFORE executing it
-                seen_tool_calls_in_iteration.add(signature)
-
-                result = execute_tool_call(tool_call)
-
-                results.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": json.dumps(result),
-                    }
-                )
-
-                if (
-                    result["success"] == False
-                    and result["error"]["type"] == "invalid_arguments"
-                ):
-                    seen_failed_tool_calls.add(signature)
+            )
 
         messages += results
 
@@ -410,10 +326,74 @@ def make_tool_call_signature(tool_call) -> tuple:
     return (tool_call.function.name, json.dumps(arguments, sort_keys=True))
 
 
+def build_tool_result_message(tool_call, result) -> dict:
+    return {
+        "role": "tool",
+        "tool_call_id": tool_call.id,
+        "content": json.dumps(result),
+    }
+
+
+def check_tool_call_policy(
+    signature,
+    seen_tool_calls_in_iteration,
+    seen_failed_tool_calls,
+) -> str:
+    if signature in seen_tool_calls_in_iteration:
+        return "duplicate"
+
+    if signature in seen_failed_tool_calls:
+        return "repeated"
+
+    return "allowed"
+
+
+def process_tool_call(
+    tool_call,
+    seen_failed_tool_calls: set,
+    seen_tool_calls_in_iteration: set,
+) -> dict:
+    signature = make_tool_call_signature(tool_call)
+
+    policy = check_tool_call_policy(
+        signature,
+        seen_tool_calls_in_iteration,
+        seen_failed_tool_calls,
+    )
+
+    if policy == "duplicate":
+        return build_tool_result_message(
+            tool_call,
+            duplicate_tool_call_error,
+        )
+
+    elif policy == "repeated":
+        return build_tool_result_message(
+            tool_call,
+            repeated_tool_call_error,
+        )
+
+    else:
+        # Record the call BEFORE executing it
+        seen_tool_calls_in_iteration.add(signature)
+
+        result = execute_tool_call(tool_call)
+
+        if (
+            result["success"] == False
+            and result["error"]["type"] == "invalid_arguments"
+        ):
+            seen_failed_tool_calls.add(signature)
+
+        return build_tool_result_message(
+            tool_call,
+            result,
+        )
+
+
 def call_llm(messages: list[any], tool_choice=None) -> dict:
     return client.chat.completions.create(
-        # This example uses qwen-plus. You can replace it with another model name as needed. Model list: https://www.alibabacloud.com/help/en/model-studio/getting-started/models
-        model="qwen-plus",
+        model=os.getenv("LLM_MODEL"),
         messages=messages,
         tools=tools,
         tool_choice=tool_choice,
@@ -489,7 +469,7 @@ def execute_tool_call(
     if not validation_result["success"]:
         return validation_result
 
-    if tool_name not in tool_functions:
+    if tool_name not in tool_registry:
         return {
             "success": False,
             "data": None,
@@ -499,7 +479,7 @@ def execute_tool_call(
             },
         }
 
-    function = tool_functions[tool_name]
+    function = tool_registry[tool_name]["function"]
 
     try:
         for attempt in range(max_retries + 1):
@@ -514,7 +494,7 @@ def execute_tool_call(
             if result["error"]["type"] != "database_error":
                 return result
 
-            if not tool_config[tool_name]["retryable"]:
+            if not tool_registry[tool_name]["retryable"]:
                 return result
 
             if attempt < max_retries:
@@ -602,7 +582,7 @@ def validate_arguments(tool_name: str, arguments: dict) -> dict:
     #     "error": None,
     # }
 
-    schema = tool_schemas[tool_name]["parameters"]
+    schema = tool_registry[tool_name]["parameters"]
 
     try:
         validate(instance=arguments, schema=schema)
