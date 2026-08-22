@@ -307,3 +307,41 @@ def get_customer_orders(customer_id: int) -> dict:
                 "message": "Unable to retrieve order",
             },
         }
+
+
+def count_customers(name: str) -> dict:
+    try:
+        with psycopg.connect(
+            "postgresql://agent_demo_user:agent_demo_password@localhost:5432/agent_demo"
+        ) as connection:
+
+            with connection.cursor() as db_cursor:
+
+                db_cursor.execute(
+                    """
+                    SELECT COUNT(*)
+                    FROM agent.customers
+                    WHERE name = %s 
+                    """,
+                    (name,),
+                )
+
+                result = db_cursor.fetchone()
+
+                return {
+                    "success": True,
+                    "data": {
+                        "count": result[0],
+                    },
+                    "error": None,
+                }
+
+    except psycopg.Error:
+        return {
+            "success": False,
+            "data": None,
+            "error": {
+                "type": "database_error",
+                "message": "Unable to count customers",
+            },
+        }
