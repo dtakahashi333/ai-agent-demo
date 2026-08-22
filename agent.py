@@ -172,8 +172,10 @@ def run_agent(
     agent_policy = "Agent retrieval policy:\n"
     agent_policy += (
         f"- Maximum total customers that may be retrieved: "
-        f"{config['max_retrieved_results']}"
+        f"{config['max_retrieved_results']}\n"
     )
+
+    agent_policy += "When a tool returns has_more=true and the user's request requires all matching results, continue retrieving pages using next_cursor. Do not claim that all results have been retrieved until has_more=false."
 
     system_prompt = SYSTEM_PROMPT + "\n\n" + agent_policy
 
@@ -215,6 +217,8 @@ def run_agent(
                     seen_failed_tool_calls,
                     seen_tool_calls_in_iteration,
                 )
+
+            print(result)
 
             if tool_call.function.name == "search_customers":
                 data = json.loads(result["content"])
