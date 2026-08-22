@@ -177,44 +177,40 @@ def get_order_status(order_id: int) -> dict:
 | database_error             | Tool infrastructure failed | Apply error/retry policy                      |
 """
 
-MAX_MATCHES = 50
+PAGE_SIZE = 5
 
 
-def search_customers(name: str) -> dict:
+def search_customers(name: str, pagination_cursor: Optional[int] = None) -> dict:
     try:
         with psycopg.connect(
             "postgresql://agent_demo_user:agent_demo_password@localhost:5432/agent_demo"
         ) as connection:
 
-            with connection.cursor() as cursor:
-                cursor.execute(
+            with connection.cursor() as db_cursor:
+
+                where_clause = "WHERE name ILIKE %s"
+                params = [f"%{name}%"]
+
+                if pagination_cursor is not None:
+                    where_clause += " AND id > %s"
+                    params.append(pagination_cursor)
+
+                params.append(PAGE_SIZE + 1)
+
+                db_cursor.execute(
                     """
                     SELECT id, name, email, plan
                     FROM agent.customers
-                    WHERE name ILIKE %s
+                    """
+                    + where_clause
+                    + """
                     ORDER BY id
                     LIMIT %s
                     """,
-                    (
-                        f"%{name}%",
-                        MAX_MATCHES + 1,
-                    ),
+                    params,
                 )
 
-                result = cursor.fetchall()
-
-                if len(result) > MAX_MATCHES:
-                    return {
-                        "success": False,
-                        "data": None,
-                        "error": {
-                            "type": "too_many_results",
-                            "message": (
-                                "The search matched too many customers. "
-                                "Please provide more specific information."
-                            ),
-                        },
-                    }
+                result = db_cursor.fetchall()
 
                 if not result:
                     return {
@@ -226,17 +222,24 @@ def search_customers(name: str) -> dict:
                         },
                     }
 
+                has_more = len(result) > PAGE_SIZE
+                page = result[:-1] if has_more else result
+
                 return {
                     "success": True,
-                    "data": [
-                        {
-                            "id": customer[0],
-                            "name": customer[1],
-                            "email": customer[2],
-                            "plan": customer[3],
-                        }
-                        for customer in result
-                    ],
+                    "data": {
+                        "customers": [
+                            {
+                                "id": customer[0],
+                                "name": customer[1],
+                                "email": customer[2],
+                                "plan": customer[3],
+                            }
+                            for customer in page
+                        ],
+                        "has_more": has_more,
+                        "next_cursor": page[-1][0] if has_more else None,
+                    },
                     "error": None,
                 }
     except psycopg.Error:
