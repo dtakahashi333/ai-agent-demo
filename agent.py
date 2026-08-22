@@ -198,7 +198,7 @@ def run_agent(
         counter += 1
 
         # First: record what the assistant requested
-        messages.append(message)
+        messages.append(message.model_dump())
 
         # Then: execute each requested tool
         seen_tool_calls_in_iteration = set()
@@ -229,6 +229,9 @@ def run_agent(
 
         messages += results
 
+        if estimate_message_tokens(messages) > config["max_estimated_context_tokens"]:
+            return "Agent stopped because the estimated context size exceeds the maximum allowed token count."
+
         # Ask the LLM what to do next
         response = llm_call(messages)
         message = response.choices[0].message
@@ -241,6 +244,10 @@ def run_agent(
     # print(json.dumps(messages))
 
     return message.content
+
+
+def estimate_message_tokens(messages) -> int:
+    return len(json.dumps(messages)) // 4
 
 
 def make_tool_call_signature(tool_call) -> tuple:
