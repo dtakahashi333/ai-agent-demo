@@ -1,16 +1,10 @@
-#!/usr/bin/env python3
+# config.py
 
-from dataclasses import dataclass
-
-
-@dataclass
-class Config:
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
-
-    collection_name: str = "squad"
-
-    embedding_model: str = "BAAI/bge-small-en-v1.5"
-    embedding_dimension: int = 384
-
-    batch_size: int = 64
+config = {
+    "page_size": 5,
+    "max_iterations": 10,
+    "max_retries": 1,
+    "retry_delay": 1.0,
+    "max_retrieved_results": 100,
+    "max_estimated_context_tokens": 12000,
+}

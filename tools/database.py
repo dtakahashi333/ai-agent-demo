@@ -3,7 +3,7 @@ from typing import Optional
 
 import psycopg
 
-from agent import config
+from config import config
 
 # there are more results than the allowed maximum
 too_many_results_error = {
