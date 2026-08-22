@@ -28,6 +28,12 @@ from tools.calculator import calculator
 from tools.rag import search_documents
 from tools.weather import get_weather
 
+config = {
+    "max_iterations": 10,
+    "max_retries": 1,
+    "retry_delay": 1.0,
+}
+
 tool_registry = {
     "calculator": {
         "function": calculator,
@@ -257,12 +263,78 @@ duplicate_tool_call_error = {
 | New tool                               | Allow           |
 """
 
+"""
+| Execution state   | Execution policy   |
+|-------------------|--------------------|
+| iteration_count   | max_iterations     |
+| tool_calls_used   | max_tool_calls     |
+| retries_performed | max_retries        |
+| elapsed_time.     | max_execution_time |
+"""
+
+"""
+Tool execution
+│
+├── State
+│   └── attempt
+│
+└── Policy
+    ├── max_retries
+    ├── retry_delay
+    └── retryable
+"""
+
+"""
+Agent execution
+│
+├── State
+│   ├── counter
+│   ├── messages
+│   └── seen_failed_tool_calls
+│
+└── Policy
+    └── max_iterations
+"""
+
+"""
+Conversation state
+└── messages
+
+Execution state
+├── iteration counter
+└── seen_failed_tool_calls
+
+This distinction becomes important if you ever build:
+
+* durable agents
+* background agents
+* pause/resume
+* crash recovery
+* long-running workflows
+* agent checkpoints
+"""
+
 
 def run_agent(
     query: str,
-    max_iterations: int = 10,
     llm_call=None,
 ) -> str:
+    """
+    If the LLM needs to know it → put it in messages
+    Examples:
+    * user request
+    * previous tool calls
+    * tool results
+    * pagination results
+    * previous assistant responses
+
+    If only the Python agent needs it → keep it as execution state
+    Examples:
+    * iteration counter
+    * duplicate-call tracking
+    * retry counters
+    * internal policy bookkeeping
+    """
 
     if llm_call is None:
         llm_call = call_llm
@@ -280,7 +352,7 @@ def run_agent(
     counter = 0
     seen_failed_tool_calls = set()
 
-    while message.tool_calls and counter < max_iterations:
+    while message.tool_calls and counter < config["max_iterations"]:
 
         counter += 1
 
@@ -311,7 +383,7 @@ def run_agent(
     if message.tool_calls:
         return "Agent stopped because the maximum iteration limit was reached."
 
-    print(json.dumps(messages))
+    # print(json.dumps(messages))
 
     return message.content
 
@@ -444,9 +516,7 @@ def mock_call_llm(messages):
     )
 
 
-def execute_tool_call(
-    tool_call, max_retries: int = 1, retry_delay: float = 1.0
-) -> dict:
+def execute_tool_call(tool_call) -> dict:
 
     print("EXECUTING:", tool_call.function.name)
 
@@ -464,11 +534,6 @@ def execute_tool_call(
             },
         }
 
-    validation_result = validate_arguments(tool_name, arguments)
-
-    if not validation_result["success"]:
-        return validation_result
-
     if tool_name not in tool_registry:
         return {
             "success": False,
@@ -479,10 +544,15 @@ def execute_tool_call(
             },
         }
 
+    validation_result = validate_arguments(tool_name, arguments)
+
+    if not validation_result["success"]:
+        return validation_result
+
     function = tool_registry[tool_name]["function"]
 
     try:
-        for attempt in range(max_retries + 1):
+        for attempt in range(config["max_retries"] + 1):
 
             result = function(**arguments)
 
@@ -497,8 +567,8 @@ def execute_tool_call(
             if not tool_registry[tool_name]["retryable"]:
                 return result
 
-            if attempt < max_retries:
-                time.sleep(retry_delay)
+            if attempt < config["max_retries"]:
+                time.sleep(config["retry_delay"])
 
         return result
     except Exception:
