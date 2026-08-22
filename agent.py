@@ -29,9 +29,12 @@ from tools.rag import search_documents
 from tools.weather import get_weather
 
 config = {
+    "page_size": 5,
     "max_iterations": 10,
     "max_retries": 1,
     "retry_delay": 1.0,
+    "max_retrieved_results": 100,
+    "max_estimated_context_tokens": 12000,
 }
 
 tool_registry = {
@@ -229,6 +232,18 @@ duplicate_tool_call_error = {
         "message": "This exact tool call was already requested in the current tool-call batch.",
     },
 }
+# found more customers than LLM can safely retrieve
+too_many_results_error = {
+    "success": False,
+    "data": None,
+    "error": {
+        "type": "too_many_results",
+        "message": (
+            "The requested result set exceeds the maximum "
+            "retrieval limit of 100 customers."
+        ),
+    },
+}
 
 """
 | Result            | Meaning                                                     |
@@ -339,8 +354,16 @@ def run_agent(
     if llm_call is None:
         llm_call = call_llm
 
+    agent_policy = "Agent retrieval policy:\n"
+    agent_policy += (
+        f"- Maximum total customers that may be retrieved: "
+        f"{config['max_retrieved_results']}"
+    )
+
+    system_prompt = SYSTEM_PROMPT + "\n\n" + agent_policy
+
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": query},
     ]
 
@@ -351,6 +374,7 @@ def run_agent(
 
     counter = 0
     seen_failed_tool_calls = set()
+    retrieved_count = 0
 
     while message.tool_calls and counter < config["max_iterations"]:
 
@@ -364,13 +388,25 @@ def run_agent(
         results = []
 
         for tool_call in message.tool_calls:
-            results.append(
-                process_tool_call(
+
+            if (
+                tool_call.function.name == "search_customers"
+                and retrieved_count >= config["max_retrieved_results"]
+            ):
+                result = too_many_results_error
+            else:
+                result = process_tool_call(
                     tool_call,
                     seen_failed_tool_calls,
                     seen_tool_calls_in_iteration,
                 )
-            )
+
+            if tool_call.function.name == "search_customers":
+                data = json.loads(result["content"])
+                if data["success"]:
+                    retrieved_count += len(data["data"]["customers"])
+
+            results.append(result)
 
         messages += results
 
@@ -398,14 +434,6 @@ def make_tool_call_signature(tool_call) -> tuple:
     return (tool_call.function.name, json.dumps(arguments, sort_keys=True))
 
 
-def build_tool_result_message(tool_call, result) -> dict:
-    return {
-        "role": "tool",
-        "tool_call_id": tool_call.id,
-        "content": json.dumps(result),
-    }
-
-
 def check_tool_call_policy(
     signature,
     seen_tool_calls_in_iteration,
@@ -418,6 +446,14 @@ def check_tool_call_policy(
         return "repeated"
 
     return "allowed"
+
+
+def build_tool_result_message(tool_call, result) -> dict:
+    return {
+        "role": "tool",
+        "tool_call_id": tool_call.id,
+        "content": json.dumps(result),
+    }
 
 
 def process_tool_call(

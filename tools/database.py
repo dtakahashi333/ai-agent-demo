@@ -3,6 +3,8 @@ from typing import Optional
 
 import psycopg
 
+from agent import config
+
 # there are more results than the allowed maximum
 too_many_results_error = {
     "success": False,
@@ -25,7 +27,7 @@ def get_customer(customer_id: int) -> dict:
                     """
                     SELECT id, name, email, plan
                     FROM agent.customers
-                    WHERE id=%s
+                    WHERE id = %s
                     """,
                     (customer_id,),
                 )
@@ -78,7 +80,7 @@ def get_order(order_id: int) -> dict:
                     """
                     SELECT id, customer_id, status, total
                     FROM agent.orders
-                    WHERE id=%s
+                    WHERE id = %s
                     """,
                     (order_id,),
                 )
@@ -131,7 +133,7 @@ def get_order_status(order_id: int) -> dict:
                     """
                     SELECT status
                     FROM agent.orders
-                    WHERE id=%s
+                    WHERE id = %s
                     """,
                     (order_id,),
                 )
@@ -177,8 +179,6 @@ def get_order_status(order_id: int) -> dict:
 | database_error             | Tool infrastructure failed | Apply error/retry policy                      |
 """
 
-PAGE_SIZE = 5
-
 
 def search_customers(name: str, pagination_cursor: Optional[int] = None) -> dict:
     try:
@@ -195,7 +195,7 @@ def search_customers(name: str, pagination_cursor: Optional[int] = None) -> dict
                     where_clause += " AND id > %s"
                     params.append(pagination_cursor)
 
-                params.append(PAGE_SIZE + 1)
+                params.append(config["page_size"] + 1)
 
                 db_cursor.execute(
                     """
@@ -222,7 +222,7 @@ def search_customers(name: str, pagination_cursor: Optional[int] = None) -> dict
                         },
                     }
 
-                has_more = len(result) > PAGE_SIZE
+                has_more = len(result) > config["page_size"]
                 page = result[:-1] if has_more else result
 
                 return {
@@ -268,7 +268,7 @@ def get_customer_orders(customer_id: int) -> dict:
                     """
                     SELECT id, customer_id, status, total
                     FROM agent.orders
-                    WHERE customer_id=%s
+                    WHERE customer_id = %s
                     """,
                     (customer_id,),
                 )
