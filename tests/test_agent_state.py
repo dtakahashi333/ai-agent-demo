@@ -78,6 +78,37 @@ class TestAgentState(TestCase):
             "premium",
         )
 
+    def test_select_customer_invalid_data_preserves_existing_customer(self):
+        """
+        old customer
+        │
+        ├── valid Customer → replace
+        │
+        └── invalid Customer → exception
+                               ↓
+                         old customer remains
+        """
+        existing_customer = Customer(
+            id=42,
+            name="Alice Smith",
+            email="alice@example.com",
+            plan="premium",
+        )
+
+        state = AgentState(selected_customer=existing_customer)
+
+        invalid_data = {
+            "id": 0,
+            "name": "Invalid Customer",
+            "email": "invalid@example.com",
+            "plan": "basic",
+        }
+
+        with self.assertRaises(ValueError):
+            state.select_customer(invalid_data)
+
+        self.assertIs(state.selected_customer, existing_customer)
+
     def test_add_retrieved_results(self):
         state = AgentState()
 
