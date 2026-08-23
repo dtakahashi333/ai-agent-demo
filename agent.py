@@ -217,8 +217,8 @@ def run_agent(
         {"role": "user", "content": query},
     ]
 
-    response = llm_call(state.messages)
-    message = response.choices[0].message
+    # Ask the LLM what to do next
+    message = call_agent_llm(state.messages)
 
     print("\n".join(str(tool_call) for tool_call in message.tool_calls))
 
@@ -314,8 +314,7 @@ def run_agent(
             )
 
         # Ask the LLM what to do next
-        response = llm_call(state.messages)
-        message = response.choices[0].message
+        message = call_agent_llm(state.messages)
 
         # print(response.model_dump_json())
 
