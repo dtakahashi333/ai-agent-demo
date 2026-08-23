@@ -42,6 +42,14 @@ class TestAgentState(TestCase):
             state.selected_customer.name,
             "Alice Smith",
         )
+        self.assertEqual(
+            state.selected_customer.email,
+            "alice@example.com",
+        )
+        self.assertEqual(
+            state.selected_customer.plan,
+            "premium",
+        )
 
     def test_select_customer(self):
         state = AgentState()
@@ -57,6 +65,18 @@ class TestAgentState(TestCase):
 
         self.assertIsNotNone(state.selected_customer)
         self.assertEqual(state.selected_customer.id, 42)
+        self.assertEqual(
+            state.selected_customer.name,
+            "Alice Smith",
+        )
+        self.assertEqual(
+            state.selected_customer.email,
+            "alice@example.com",
+        )
+        self.assertEqual(
+            state.selected_customer.plan,
+            "premium",
+        )
 
     def test_add_retrieved_results(self):
         state = AgentState()

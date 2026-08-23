@@ -22,11 +22,16 @@ class AgentState:
     """
     Run-scoped state for a single agent execution.
 
-    Contains:
-    - LLM-visible conversation state
-    - execution safety state
-    - retrieval budget state
-    - semantic working state
+    Conversation state:
+    - messages
+
+    Execution state:
+    - iteration
+    - seen_failed_tool_calls
+    - retrieved_count
+
+    Semantic working state:
+    - selected_customer
 
     This state is intentionally discarded when run_agent()
     finishes. It is not persistent agent memory.
@@ -50,10 +55,11 @@ class AgentState:
         if self.retrieved_count < 0:
             raise ValueError("retrieved_count cannot be negative")
 
-    def select_customer(self, data: dict) -> None:
-        if data["id"] <= 0:
-            raise ValueError("customer id must be positive")
+    """
+    Every mutation of AgentState happens through an AgentState method.
+    """
 
+    def select_customer(self, data: dict) -> None:
         self.selected_customer = Customer(
             data["id"],
             data["name"],

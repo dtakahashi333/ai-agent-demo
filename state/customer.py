@@ -17,3 +17,7 @@ class Customer:
     name: str
     email: str
     plan: str
+
+    def __post_init__(self):
+        if self.id <= 0:
+            raise ValueError("customer id must be positive")
