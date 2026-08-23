@@ -218,7 +218,7 @@ def run_agent(
     ]
 
     # Ask the LLM what to do next
-    message = call_agent_llm(state.messages)
+    message = call_agent_llm(state.messages, llm_call)
 
     print("\n".join(str(tool_call) for tool_call in message.tool_calls))
 
@@ -226,81 +226,10 @@ def run_agent(
 
         state.iteration += 1
 
-        # Agent-level budget allocation
-        allowed_call_ids = allocate_retrieval_budget(
-            message.tool_calls,
-            state.retrieved_count,
-        )
-
         # Record what the assistant requested
         state.messages.append(message.model_dump())
 
-        # Validate each requested tool call
-        seen_tool_calls_in_iteration = set()
-
-        approved_calls = []
-        results = []
-
-        # Then process each call
-        for tool_call in message.tool_calls:
-
-            if tool_call.id not in allowed_call_ids:
-                results.append(
-                    build_tool_result_message(
-                        tool_call,
-                        retrieval_limit_exceeded_error,
-                    )
-                )
-                continue
-
-            policy, signature = validate_tool_call(
-                tool_call,
-                state.seen_failed_tool_calls,
-                seen_tool_calls_in_iteration,
-            )
-
-            if policy == "duplicate":
-                results.append(
-                    build_tool_result_message(
-                        tool_call,
-                        duplicate_tool_call_error,
-                    )
-                )
-
-            elif policy == "repeated":
-                results.append(
-                    build_tool_result_message(
-                        tool_call,
-                        repeated_tool_call_error,
-                    )
-                )
-
-            elif policy == "allowed":
-                approved_calls.append((tool_call, signature))
-
-        # Execute approved calls in parallel
-        executed_calls = execute_approved_calls(approved_calls)
-
-        for tool_call, tool_call_signature, result in executed_calls:
-
-            print(result)
-
-            if (
-                result["success"] is False
-                and result["error"]["type"] == "invalid_arguments"
-            ):
-                state.seen_failed_tool_calls.add(tool_call_signature)
-
-            if tool_call.function.name == "search_customers":
-                if result["success"] is True:
-                    state.retrieved_count += len(result["data"]["customers"])
-
-            results.append(
-                build_tool_result_message(
-                    tool_call,
-                    result,
-                )
-            )
+        results = process_tool_call_batch(message, state)
 
         state.messages += results
 
@@ -314,7 +243,7 @@ def run_agent(
             )
 
         # Ask the LLM what to do next
-        message = call_agent_llm(state.messages)
+        message = call_agent_llm(state.messages, llm_call)
 
         # print(response.model_dump_json())
 
@@ -324,6 +253,86 @@ def run_agent(
     # print(json.dumps(state.messages))
 
     return message.content
+
+
+def call_agent_llm(
+    messages: list[dict],
+    llm_call,
+):
+    response = llm_call(messages)
+    return response.choices[0].message
+
+
+def process_tool_call_batch(
+    message,
+    state: AgentState,
+) -> list[dict]:
+    # Agent-level budget allocation
+    allowed_call_ids = allocate_retrieval_budget(
+        message.tool_calls,
+        state.retrieved_count,
+    )
+
+    # Validate each requested tool call
+    seen_tool_calls_in_iteration = set()
+
+    approved_calls = []
+    results = []
+
+    # Then process each call
+    for tool_call in message.tool_calls:
+        if tool_call.id not in allowed_call_ids:
+            results.append(
+                build_tool_result_message(
+                    tool_call,
+                    retrieval_limit_exceeded_error,
+                )
+            )
+            continue
+
+        policy, signature = validate_tool_call(
+            tool_call,
+            state.seen_failed_tool_calls,
+            seen_tool_calls_in_iteration,
+        )
+
+        if policy == "duplicate":
+            results.append(
+                build_tool_result_message(
+                    tool_call,
+                    duplicate_tool_call_error,
+                )
+            )
+        elif policy == "repeated":
+            results.append(
+                build_tool_result_message(
+                    tool_call,
+                    repeated_tool_call_error,
+                )
+            )
+        elif policy == "allowed":
+            approved_calls.append((tool_call, signature))
+
+    # Execute approved calls in parallel
+    executed_calls = execute_approved_calls(approved_calls)
+
+    for tool_call, tool_call_signature, result in executed_calls:
+        if (
+            result["success"] is False
+            and result["error"]["type"] == "invalid_arguments"
+        ):
+            state.seen_failed_tool_calls.add(tool_call_signature)
+
+        update_agent_state(state, tool_call, result)
+
+        results.append(
+            build_tool_result_message(
+                tool_call,
+                result,
+            )
+        )
+
+    return results
 
 
 def allocate_retrieval_budget(
@@ -371,6 +380,23 @@ def build_tool_result_message(tool_call, result) -> dict:
         "tool_call_id": tool_call.id,
         "content": json.dumps(result),
     }
+
+
+def update_agent_state(
+    state: AgentState,
+    tool_call,
+    result: dict,
+) -> None:
+    if result["success"] is False:
+        return
+
+    if tool_call.function.name == "search_customers":
+        if result["success"] is True:
+            state.retrieved_count += len(result["data"]["customers"])
+
+    if tool_call.function.name == "get_customer":
+        if result["success"] is True:
+            state.selected_customer = result["data"]
 
 
 def estimate_message_tokens(messages) -> int:

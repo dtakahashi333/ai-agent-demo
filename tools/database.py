@@ -1,6 +1,4 @@
 # tools/database.py
-from typing import Optional
-
 import psycopg
 
 from config import config
@@ -180,7 +178,7 @@ def get_order_status(order_id: int) -> dict:
 """
 
 
-def search_customers(name: str, pagination_cursor: Optional[int] = None) -> dict:
+def search_customers(name: str, pagination_cursor: int | None = None) -> dict:
     try:
         with psycopg.connect(
             "postgresql://agent_demo_user:agent_demo_password@localhost:5432/agent_demo"
