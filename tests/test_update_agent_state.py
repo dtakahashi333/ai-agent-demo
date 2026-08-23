@@ -56,6 +56,43 @@ class TestUpdateAgentState(TestCase):
             "Alice Smith",
         )
 
+    def test_get_customer_success_replaces_existing_customer(self):
+        state = AgentState(
+            selected_customer=Customer(
+                id=42,
+                name="Alice Smith",
+                email="alice@example.com",
+                plan="premium",
+            )
+        )
+
+        tool_call = Mock()
+        tool_call.function.name = "get_customer"
+
+        result = {
+            "success": True,
+            "data": {
+                "id": 84,
+                "name": "Bob Jones",
+                "email": "bob@example.com",
+                "plan": "basic",
+            },
+            "error": None,
+        }
+
+        update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
+
+        self.assertIsNotNone(state.selected_customer)
+        self.assertEqual(state.selected_customer.id, 84)
+        self.assertEqual(
+            state.selected_customer.name,
+            "Bob Jones",
+        )
+
     def test_get_customer_failure_preserves_existing_customer(self):
         customer = Customer(
             id=42,
