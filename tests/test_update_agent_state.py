@@ -12,8 +12,8 @@ class TestUpdateAgentState(TestCase):
     def test_get_customer_failure_does_not_select_customer(self):
         state = AgentState()
 
-        toolcall = Mock()
-        toolcall.function.name = "get_customer"
+        tool_call = Mock()
+        tool_call.function.name = "get_customer"
 
         result = {
             "success": False,
@@ -25,15 +25,15 @@ class TestUpdateAgentState(TestCase):
         }
 
         # Invoke update_agent_state(...)
-        update_agent_state(state, toolcall, result)
+        update_agent_state(state, tool_call, result)
 
         self.assertIsNone(state.selected_customer)
 
     def test_get_customer_success_selects_customer(self):
         state = AgentState()
 
-        toolcall = Mock()
-        toolcall.function.name = "get_customer"
+        tool_call = Mock()
+        tool_call.function.name = "get_customer"
 
         result = {
             "success": True,
@@ -47,13 +47,21 @@ class TestUpdateAgentState(TestCase):
         }
 
         # Invoke update_agent_state(...)
-        update_agent_state(state, toolcall, result)
+        update_agent_state(state, tool_call, result)
 
         self.assertIsNotNone(state.selected_customer)
         self.assertEqual(state.selected_customer.id, 42)
         self.assertEqual(
             state.selected_customer.name,
             "Alice Smith",
+        )
+        self.assertEqual(
+            state.selected_customer.email,
+            "alice@example.com",
+        )
+        self.assertEqual(
+            state.selected_customer.plan,
+            "premium",
         )
 
     def test_get_customer_success_replaces_existing_customer(self):
@@ -92,6 +100,14 @@ class TestUpdateAgentState(TestCase):
             state.selected_customer.name,
             "Bob Jones",
         )
+        self.assertEqual(
+            state.selected_customer.email,
+            "bob@example.com",
+        )
+        self.assertEqual(
+            state.selected_customer.plan,
+            "basic",
+        )
 
     def test_get_customer_failure_preserves_existing_customer(self):
         customer = Customer(
@@ -119,6 +135,14 @@ class TestUpdateAgentState(TestCase):
 
         self.assertIsNotNone(state.selected_customer)
         self.assertEqual(state.selected_customer.id, 42)
+        self.assertEqual(
+            state.selected_customer.email,
+            "alice@example.com",
+        )
+        self.assertEqual(
+            state.selected_customer.plan,
+            "premium",
+        )
 
     def test_search_customers_adds_retrieved_count(self):
         state = AgentState()
@@ -257,3 +281,52 @@ class TestUpdateAgentState(TestCase):
         )
 
         self.assertEqual(state.retrieved_count, 5)
+
+    def test_get_customer_does_not_change_retrieved_count(self):
+        state = AgentState(retrieved_count=5)
+
+        tool_call = Mock()
+        tool_call.function.name = "get_customer"
+
+        result = {
+            "success": True,
+            "data": {
+                "id": 42,
+                "name": "Alice Smith",
+                "email": "alice@example.com",
+                "plan": "premium",
+            },
+            "error": None,
+        }
+
+        update_agent_state(state, tool_call, result)
+
+        self.assertEqual(state.retrieved_count, 5)
+
+    def test_search_customers_does_not_select_customer(self):
+        state = AgentState()
+
+        tool_call = Mock()
+        tool_call.function.name = "search_customers"
+
+        result = {
+            "success": True,
+            "data": {
+                "customers": [
+                    {
+                        "id": 42,
+                        "name": "Alice Smith",
+                        "email": "alice@example.com",
+                        "plan": "premium",
+                    }
+                ],
+                "has_more": False,
+                "next_cursor": None,
+            },
+            "error": None,
+        }
+
+        update_agent_state(state, tool_call, result)
+
+        self.assertEqual(state.retrieved_count, 1)
+        self.assertIsNone(state.selected_customer)

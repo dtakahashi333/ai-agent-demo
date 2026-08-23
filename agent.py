@@ -419,12 +419,9 @@ def update_agent_state(
         return
 
     if tool_call.function.name == "search_customers":
-        if result["success"] is True:
-            state.add_retrieved_results(len(result["data"]["customers"]))
-
-    if tool_call.function.name == "get_customer":
-        if result["success"] is True:
-            state.select_customer(result["data"])
+        state.add_retrieved_results(len(result["data"]["customers"]))
+    elif tool_call.function.name == "get_customer":
+        state.select_customer(result["data"])
 
 
 def estimate_message_tokens(messages) -> int:
