@@ -38,3 +38,10 @@ class AgentState:
     seen_failed_tool_calls: set[str] = field(default_factory=set)
 
     selected_customer: dict | None = None  # exactly one successfully retrieved customer
+
+    def __post_init__(self):
+        if self.iteration < 0:
+            raise ValueError("iteration cannot be negative")
+
+        if self.retrieved_count < 0:
+            raise ValueError("retrieved_count cannot be negative")
