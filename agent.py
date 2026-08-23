@@ -212,12 +212,12 @@ def run_agent(
 
     system_prompt = SYSTEM_PROMPT + "\n\n" + agent_policy
 
-    messages = [
+    state.messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": query},
     ]
 
-    response = llm_call(messages)
+    response = llm_call(state.messages)
     message = response.choices[0].message
 
     print("\n".join(str(tool_call) for tool_call in message.tool_calls))
@@ -233,7 +233,7 @@ def run_agent(
         )
 
         # Record what the assistant requested
-        messages.append(message.model_dump())
+        state.messages.append(message.model_dump())
 
         # Validate each requested tool call
         seen_tool_calls_in_iteration = set()
@@ -302,16 +302,19 @@ def run_agent(
                 )
             )
 
-        messages += results
+        state.messages += results
 
-        if estimate_message_tokens(messages) > config["max_estimated_context_tokens"]:
+        if (
+            estimate_message_tokens(state.messages)
+            > config["max_estimated_context_tokens"]
+        ):
             return (
                 "Agent stopped because the estimated context "
                 "size exceeds the maximum allowed token count."
             )
 
         # Ask the LLM what to do next
-        response = llm_call(messages)
+        response = llm_call(state.messages)
         message = response.choices[0].message
 
         # print(response.model_dump_json())
@@ -319,7 +322,7 @@ def run_agent(
     if message.tool_calls:
         return "Agent stopped because the maximum iteration limit was reached."
 
-    # print(json.dumps(messages))
+    # print(json.dumps(state.messages))
 
     return message.content
 
