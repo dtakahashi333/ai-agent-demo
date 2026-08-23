@@ -23,7 +23,7 @@ class TestAgentState(TestCase):
 
         self.assertEqual(state.iteration, 0)
         self.assertEqual(state.retrieved_count, 0)
-        self.assertIsNone(state.selected_customer)
+        self.assertIsNone(state.retrieved_customer)
         self.assertEqual(state.seen_failed_tool_calls, set())
 
     def test_agent_state_selected_customer(self):
@@ -34,20 +34,20 @@ class TestAgentState(TestCase):
             plan="premium",
         )
 
-        state = AgentState(selected_customer=customer)
+        state = AgentState(retrieved_customer=customer)
 
-        self.assertIsNotNone(state.selected_customer)
-        self.assertEqual(state.selected_customer.id, 42)
+        self.assertIsNotNone(state.retrieved_customer)
+        self.assertEqual(state.retrieved_customer.id, 42)
         self.assertEqual(
-            state.selected_customer.name,
+            state.retrieved_customer.name,
             "Alice Smith",
         )
         self.assertEqual(
-            state.selected_customer.email,
+            state.retrieved_customer.email,
             "alice@example.com",
         )
         self.assertEqual(
-            state.selected_customer.plan,
+            state.retrieved_customer.plan,
             "premium",
         )
 
@@ -63,18 +63,18 @@ class TestAgentState(TestCase):
 
         state.select_customer(data)
 
-        self.assertIsNotNone(state.selected_customer)
-        self.assertEqual(state.selected_customer.id, 42)
+        self.assertIsNotNone(state.retrieved_customer)
+        self.assertEqual(state.retrieved_customer.id, 42)
         self.assertEqual(
-            state.selected_customer.name,
+            state.retrieved_customer.name,
             "Alice Smith",
         )
         self.assertEqual(
-            state.selected_customer.email,
+            state.retrieved_customer.email,
             "alice@example.com",
         )
         self.assertEqual(
-            state.selected_customer.plan,
+            state.retrieved_customer.plan,
             "premium",
         )
 
@@ -95,7 +95,7 @@ class TestAgentState(TestCase):
             plan="premium",
         )
 
-        state = AgentState(selected_customer=existing_customer)
+        state = AgentState(retrieved_customer=existing_customer)
 
         invalid_data = {
             "id": 0,
@@ -107,7 +107,7 @@ class TestAgentState(TestCase):
         with self.assertRaises(ValueError):
             state.select_customer(invalid_data)
 
-        self.assertIs(state.selected_customer, existing_customer)
+        self.assertIs(state.retrieved_customer, existing_customer)
 
     def test_add_retrieved_results(self):
         state = AgentState()

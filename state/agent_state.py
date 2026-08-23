@@ -31,7 +31,7 @@ class AgentState:
     - retrieved_count
 
     Semantic working state:
-    - selected_customer
+    - retrieved_customer
 
     This state is intentionally discarded when run_agent()
     finishes. It is not persistent agent memory.
@@ -44,7 +44,7 @@ class AgentState:
 
     seen_failed_tool_calls: set[str] = field(default_factory=set)
 
-    selected_customer: Customer | None = (
+    retrieved_customer: Customer | None = (
         None  # exactly one successfully retrieved customer
     )
 
@@ -60,7 +60,7 @@ class AgentState:
     """
 
     def select_customer(self, data: dict) -> None:
-        self.selected_customer = Customer(
+        self.retrieved_customer = Customer(
             data["id"],
             data["name"],
             data["email"],
@@ -97,3 +97,6 @@ class AgentState:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": query},
         ]
+
+    def has_selected_customer(self) -> bool:
+        return self.retrieved_customer is not None

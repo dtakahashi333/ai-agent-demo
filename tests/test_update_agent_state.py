@@ -27,7 +27,7 @@ class TestUpdateAgentState(TestCase):
         # Invoke update_agent_state(...)
         update_agent_state(state, tool_call, result)
 
-        self.assertIsNone(state.selected_customer)
+        self.assertIsNone(state.retrieved_customer)
 
     def test_get_customer_success_selects_customer(self):
         state = AgentState()
@@ -49,24 +49,24 @@ class TestUpdateAgentState(TestCase):
         # Invoke update_agent_state(...)
         update_agent_state(state, tool_call, result)
 
-        self.assertIsNotNone(state.selected_customer)
-        self.assertEqual(state.selected_customer.id, 42)
+        self.assertIsNotNone(state.retrieved_customer)
+        self.assertEqual(state.retrieved_customer.id, 42)
         self.assertEqual(
-            state.selected_customer.name,
+            state.retrieved_customer.name,
             "Alice Smith",
         )
         self.assertEqual(
-            state.selected_customer.email,
+            state.retrieved_customer.email,
             "alice@example.com",
         )
         self.assertEqual(
-            state.selected_customer.plan,
+            state.retrieved_customer.plan,
             "premium",
         )
 
     def test_get_customer_success_replaces_existing_customer(self):
         state = AgentState(
-            selected_customer=Customer(
+            retrieved_customer=Customer(
                 id=42,
                 name="Alice Smith",
                 email="alice@example.com",
@@ -94,18 +94,18 @@ class TestUpdateAgentState(TestCase):
             result,
         )
 
-        self.assertIsNotNone(state.selected_customer)
-        self.assertEqual(state.selected_customer.id, 84)
+        self.assertIsNotNone(state.retrieved_customer)
+        self.assertEqual(state.retrieved_customer.id, 84)
         self.assertEqual(
-            state.selected_customer.name,
+            state.retrieved_customer.name,
             "Bob Jones",
         )
         self.assertEqual(
-            state.selected_customer.email,
+            state.retrieved_customer.email,
             "bob@example.com",
         )
         self.assertEqual(
-            state.selected_customer.plan,
+            state.retrieved_customer.plan,
             "basic",
         )
 
@@ -117,7 +117,7 @@ class TestUpdateAgentState(TestCase):
             plan="premium",
         )
 
-        state = AgentState(selected_customer=customer)
+        state = AgentState(retrieved_customer=customer)
 
         tool_call = Mock()
         tool_call.function.name = "get_customer"
@@ -133,14 +133,14 @@ class TestUpdateAgentState(TestCase):
 
         update_agent_state(state, tool_call, result)
 
-        self.assertIsNotNone(state.selected_customer)
-        self.assertEqual(state.selected_customer.id, 42)
+        self.assertIsNotNone(state.retrieved_customer)
+        self.assertEqual(state.retrieved_customer.id, 42)
         self.assertEqual(
-            state.selected_customer.email,
+            state.retrieved_customer.email,
             "alice@example.com",
         )
         self.assertEqual(
-            state.selected_customer.plan,
+            state.retrieved_customer.plan,
             "premium",
         )
 
@@ -329,7 +329,7 @@ class TestUpdateAgentState(TestCase):
         update_agent_state(state, tool_call, result)
 
         self.assertEqual(state.retrieved_count, 1)
-        self.assertIsNone(state.selected_customer)
+        self.assertIsNone(state.retrieved_customer)
 
     def test_get_weather_does_not_modify_agent_state(self):
         state = AgentState(
@@ -355,4 +355,4 @@ class TestUpdateAgentState(TestCase):
         )
 
         self.assertEqual(state.retrieved_count, 5)
-        self.assertIsNone(state.selected_customer)
+        self.assertIsNone(state.retrieved_customer)

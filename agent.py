@@ -438,6 +438,16 @@ def update_agent_state(
         state.select_customer(result["data"])
 
 
+def validate_customer_dependency(
+    state: AgentState,
+    customer_id: int,
+) -> bool:
+    if state.retrieved_customer is None:
+        return True
+
+    return state.retrieved_customer.id == customer_id
+
+
 def estimate_message_tokens(messages) -> int:
     return len(json.dumps(messages)) // 4
 
