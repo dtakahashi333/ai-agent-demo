@@ -267,6 +267,23 @@ def process_tool_call_batch(
     message,
     state: AgentState,
 ) -> list[dict]:
+    """
+    process_tool_call_batch()
+    │
+    ├── Tool-call safety
+    │   ├── retrieval budget
+    │   ├── validation
+    │   └── failed-call tracking
+    │
+    ├── Tool execution
+    │
+    └── Tool result
+        ↓
+    update_agent_state()
+        ↓
+    semantic working state
+    """
+
     # Agent-level budget allocation
     allowed_call_ids = allocate_retrieval_budget(
         message.tool_calls,
@@ -317,11 +334,15 @@ def process_tool_call_batch(
     executed_calls = execute_approved_calls(approved_calls)
 
     for tool_call, tool_call_signature, result in executed_calls:
-        if (
-            result["success"] is False
-            and result["error"]["type"] == "invalid_arguments"
-        ):
-            state.seen_failed_tool_calls.add(tool_call_signature)
+        """
+        record_tool_failure() answers:
+        > Did this execution produce a failure that affects future tool-call safety?
+
+        update_agent_state() answers:
+        > Did this successful tool result change what the agent knows?
+        """
+
+        record_tool_failure(state, tool_call_signature, result)
 
         update_agent_state(state, tool_call, result)
 
@@ -380,6 +401,15 @@ def build_tool_result_message(tool_call, result) -> dict:
         "tool_call_id": tool_call.id,
         "content": json.dumps(result),
     }
+
+
+def record_tool_failure(
+    state: AgentState,
+    tool_call_signature,
+    result: dict,
+) -> None:
+    if result["success"] is False and result["error"]["type"] == "invalid_arguments":
+        state.seen_failed_tool_calls.add(tool_call_signature)
 
 
 def update_agent_state(
