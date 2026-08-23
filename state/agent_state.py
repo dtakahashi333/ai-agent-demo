@@ -69,3 +69,6 @@ class AgentState:
 
     def record_failed_tool_call(self, signature: str) -> None:
         self.seen_failed_tool_calls.add(signature)
+
+    def increment_iteration(self) -> None:
+        self.iteration += 1

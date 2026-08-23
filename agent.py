@@ -224,8 +224,8 @@ def run_agent(
     print("\n".join(str(tool_call) for tool_call in message.tool_calls))
 
     while message.tool_calls and state.iteration < config["max_iterations"]:
-
-        state.iteration += 1
+        
+        state.increment_iteration()
 
         # Record what the assistant requested
         state.messages.append(message.model_dump())

@@ -99,3 +99,16 @@ class TestAgentState(TestCase):
             len(state.seen_failed_tool_calls),
             1,
         )
+
+    def test_increment_iteration(self):
+        state = AgentState()
+
+        self.assertEqual(state.iteration, 0)
+
+        state.increment_iteration()
+
+        self.assertEqual(state.iteration, 1)
+
+        state.increment_iteration()
+
+        self.assertEqual(state.iteration, 2)
