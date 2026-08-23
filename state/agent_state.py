@@ -72,3 +72,9 @@ class AgentState:
 
     def increment_iteration(self) -> None:
         self.iteration += 1
+
+    def add_messages(self, messages: list[dict]) -> None:
+        """
+        Continue the existing conversation.
+        """
+        self.messages.extend(messages)

@@ -112,3 +112,34 @@ class TestAgentState(TestCase):
         state.increment_iteration()
 
         self.assertEqual(state.iteration, 2)
+
+    def test_add_messages(self):
+        state = AgentState()
+
+        messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi"},
+        ]
+
+        state.add_messages(messages)
+
+        self.assertEqual(state.messages, messages)
+
+    def test_add_messages_appends_to_existing_messages(self):
+        state = AgentState(messages=[{"role": "system", "content": "System"}])
+
+        new_messages = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi"},
+        ]
+
+        state.add_messages(new_messages)
+
+        self.assertEqual(
+            state.messages,
+            [
+                {"role": "system", "content": "System"},
+                {"role": "user", "content": "Hello"},
+                {"role": "assistant", "content": "Hi"},
+            ],
+        )

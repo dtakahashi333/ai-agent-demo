@@ -224,15 +224,15 @@ def run_agent(
     print("\n".join(str(tool_call) for tool_call in message.tool_calls))
 
     while message.tool_calls and state.iteration < config["max_iterations"]:
-        
+
         state.increment_iteration()
 
         # Record what the assistant requested
-        state.messages.append(message.model_dump())
+        state.add_messages([message.model_dump()])
 
         results = process_tool_call_batch(message, state)
 
-        state.messages += results
+        state.add_messages(results)
 
         if (
             estimate_message_tokens(state.messages)
