@@ -349,6 +349,9 @@ def allocate_retrieval_budget(
 
 def execute_approved_calls(approved_calls) -> List[tuple]:
 
+    if not approved_calls:
+        return []
+
     with ThreadPoolExecutor(max_workers=len(approved_calls)) as executor:
 
         futures = [
@@ -362,8 +365,36 @@ def execute_approved_calls(approved_calls) -> List[tuple]:
         ]
 
 
+def build_tool_result_message(tool_call, result) -> dict:
+    return {
+        "role": "tool",
+        "tool_call_id": tool_call.id,
+        "content": json.dumps(result),
+    }
+
+
 def estimate_message_tokens(messages) -> int:
     return len(json.dumps(messages)) // 4
+
+
+def validate_tool_call(
+    tool_call,
+    seen_failed_tool_calls: set,
+    seen_tool_calls_in_iteration: set,
+) -> tuple:
+    signature = make_tool_call_signature(tool_call)
+
+    policy = check_tool_call_policy(
+        signature,
+        seen_tool_calls_in_iteration,
+        seen_failed_tool_calls,
+    )
+
+    if policy == "allowed":
+        # Record the call BEFORE executing it
+        seen_tool_calls_in_iteration.add(signature)
+
+    return policy, signature
 
 
 def make_tool_call_signature(tool_call) -> tuple:
@@ -388,34 +419,6 @@ def check_tool_call_policy(
         return "repeated"
 
     return "allowed"
-
-
-def build_tool_result_message(tool_call, result) -> dict:
-    return {
-        "role": "tool",
-        "tool_call_id": tool_call.id,
-        "content": json.dumps(result),
-    }
-
-
-def validate_tool_call(
-    tool_call,
-    seen_failed_tool_calls: set,
-    seen_tool_calls_in_iteration: set,
-) -> tuple:
-    signature = make_tool_call_signature(tool_call)
-
-    policy = check_tool_call_policy(
-        signature,
-        seen_tool_calls_in_iteration,
-        seen_failed_tool_calls,
-    )
-
-    if policy == "allowed":
-        # Record the call BEFORE executing it
-        seen_tool_calls_in_iteration.add(signature)
-
-    return policy, signature
 
 
 def call_llm(messages: list[any], tool_choice=None) -> dict:
