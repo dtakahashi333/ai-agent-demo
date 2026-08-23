@@ -17,6 +17,19 @@ from dataclasses import dataclass, field
 
 @dataclass
 class AgentState:
+    """
+    Run-scoped state for a single agent execution.
+
+    Contains:
+    - LLM-visible conversation state
+    - execution safety state
+    - retrieval budget state
+    - semantic working state
+
+    This state is intentionally discarded when run_agent()
+    finishes. It is not persistent agent memory.
+    """
+
     messages: list[dict] = field(default_factory=list)
 
     iteration: int = 0
