@@ -1,5 +1,7 @@
-# agent_state.py
+# models/agent_state.py
 from dataclasses import dataclass, field
+
+from models.customer import Customer
 
 """
 |State                        | Lifetime      | Location       |
@@ -37,7 +39,9 @@ class AgentState:
 
     seen_failed_tool_calls: set[str] = field(default_factory=set)
 
-    selected_customer: dict | None = None  # exactly one successfully retrieved customer
+    selected_customer: Customer | None = (
+        None  # exactly one successfully retrieved customer
+    )
 
     def __post_init__(self):
         if self.iteration < 0:

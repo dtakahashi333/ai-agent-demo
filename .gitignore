@@ -74,5 +74,5 @@ responses/
 
 # Miscellaneous
 chatgpt/
-models/
+llm/
 squad_embeddings.json

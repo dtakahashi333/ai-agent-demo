@@ -9,8 +9,9 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from types import SimpleNamespace
 
-from agent_state import AgentState
+from models.agent_state import AgentState
 from config import config
+from models.customer import Customer
 from tool_registry import build_llm_tools, tool_registry
 
 from prompts.agent_prompt import SYSTEM_PROMPT
@@ -426,7 +427,12 @@ def update_agent_state(
 
     if tool_call.function.name == "get_customer":
         if result["success"] is True:
-            state.selected_customer = result["data"]
+            state.selected_customer = Customer(
+                result["data"]["id"],
+                result["data"]["name"],
+                result["data"]["email"],
+                result["data"]["plan"],
+            )
 
 
 def estimate_message_tokens(messages) -> int:
