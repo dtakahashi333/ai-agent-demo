@@ -60,3 +60,9 @@ class AgentState:
             data["email"],
             data["plan"],
         )
+
+    def add_retrieved_results(self, count: int) -> None:
+        if count < 0:
+            raise ValueError("retrieved result count cannot be negative")
+
+        self.retrieved_count += count

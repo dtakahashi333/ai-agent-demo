@@ -57,3 +57,20 @@ class TestAgentState(TestCase):
 
         self.assertIsNotNone(state.selected_customer)
         self.assertEqual(state.selected_customer.id, 42)
+
+    def test_add_retrieved_results(self):
+        state = AgentState()
+
+        state.add_retrieved_results(5)
+
+        self.assertEqual(state.retrieved_count, 5)
+
+        state.add_retrieved_results(2)
+
+        self.assertEqual(state.retrieved_count, 7)
+
+    def test_add_retrieved_results_rejects_negative_count(self):
+        state = AgentState()
+
+        with self.assertRaises(ValueError):
+            state.add_retrieved_results(-1)

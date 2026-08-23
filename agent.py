@@ -423,7 +423,7 @@ def update_agent_state(
 
     if tool_call.function.name == "search_customers":
         if result["success"] is True:
-            state.retrieved_count += len(result["data"]["customers"])
+            state.add_retrieved_results(len(result["data"]["customers"]))
 
     if tool_call.function.name == "get_customer":
         if result["success"] is True:
