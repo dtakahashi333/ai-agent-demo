@@ -119,3 +119,141 @@ class TestUpdateAgentState(TestCase):
 
         self.assertIsNotNone(state.selected_customer)
         self.assertEqual(state.selected_customer.id, 42)
+
+    def test_search_customers_adds_retrieved_count(self):
+        state = AgentState()
+
+        tool_call = Mock()
+        tool_call.function.name = "search_customers"
+
+        result = {
+            "success": True,
+            "data": {
+                "customers": [
+                    {
+                        "id": 1,
+                        "name": "Alice Smith",
+                        "email": "alice@example.com",
+                        "plan": "premium",
+                    },
+                    {
+                        "id": 2,
+                        "name": "Alice Jones",
+                        "email": "alice.jones@example.com",
+                        "plan": "basic",
+                    },
+                    {
+                        "id": 3,
+                        "name": "Alice Brown",
+                        "email": "alice.brown@example.com",
+                        "plan": "premium",
+                    },
+                ],
+                "has_more": True,
+                "next_cursor": 3,
+            },
+            "error": None,
+        }
+
+        update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
+
+        self.assertEqual(state.retrieved_count, 3)
+
+    def test_search_customers_accumulates_retrieved_count(self):
+        state = AgentState()
+
+        tool_call = Mock()
+        tool_call.function.name = "search_customers"
+
+        first_result = {
+            "success": True,
+            "data": {
+                "customers": [
+                    {"id": 1},
+                    {"id": 2},
+                    {"id": 3},
+                ],
+                "has_more": True,
+                "next_cursor": 3,
+            },
+            "error": None,
+        }
+
+        second_result = {
+            "success": True,
+            "data": {
+                "customers": [
+                    {"id": 4},
+                    {"id": 5},
+                ],
+                "has_more": False,
+                "next_cursor": None,
+            },
+            "error": None,
+        }
+
+        update_agent_state(
+            state,
+            tool_call,
+            first_result,
+        )
+
+        self.assertEqual(state.retrieved_count, 3)
+
+        update_agent_state(
+            state,
+            tool_call,
+            second_result,
+        )
+
+        self.assertEqual(state.retrieved_count, 5)
+
+    def test_search_customers_failure_does_not_increment_retrieved_count(self):
+        state = AgentState()
+
+        tool_call = Mock()
+        tool_call.function.name = "search_customers"
+
+        result = {
+            "success": False,
+            "data": None,
+            "error": {
+                "type": "database_error",
+                "message": "Unable to retrieve customers",
+            },
+        }
+
+        update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
+
+        self.assertEqual(state.retrieved_count, 0)
+
+    def test_search_customers_failure_preserves_retrieved_count(self):
+        state = AgentState(retrieved_count=5)
+
+        tool_call = Mock()
+        tool_call.function.name = "search_customers"
+
+        result = {
+            "success": False,
+            "data": None,
+            "error": {
+                "type": "database_error",
+                "message": "Unable to retrieve customers",
+            },
+        }
+
+        update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
+
+        self.assertEqual(state.retrieved_count, 5)
