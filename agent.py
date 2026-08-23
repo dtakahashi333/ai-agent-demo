@@ -2,7 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import os
 import json
-from time import time
+import time
 from typing import List, Optional
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
@@ -194,7 +194,19 @@ def run_agent(
         f"{config['max_retrieved_results']}\n"
     )
 
-    agent_policy += "When a tool returns has_more=true and the user's request requires all matching results, continue retrieving pages using next_cursor. Do not claim that all results have been retrieved until has_more=false."
+    agent_policy += (
+        "When a tool returns has_more=true and the user's request "
+        "requires all matching results, continue retrieving pages "
+        "using next_cursor. Do not claim that all results have been "
+        "retrieved until has_more=false.\n"
+    )
+
+    agent_policy += (
+        "When multiple requested tool calls are independent, request them "
+        "together in the same tool-call response so they can be executed "
+        "in parallel. Do not wait for one independent call to finish before "
+        "requesting another.\n"
+    )
 
     system_prompt = SYSTEM_PROMPT + "\n\n" + agent_policy
 
@@ -205,6 +217,8 @@ def run_agent(
 
     response = llm_call(messages)
     message = response.choices[0].message
+
+    print("\n".join(str(tool_call) for tool_call in message.tool_calls))
 
     counter = 0
     seen_failed_tool_calls = set()
@@ -461,6 +475,10 @@ def execute_tool_call(tool_call) -> dict:
 
     print("EXECUTING:", tool_call.function.name)
 
+    start = time.perf_counter()
+
+    print(f"[START {tool_call.function.name}] " f"{start:.4f}")
+
     tool_name = tool_call.function.name
 
     try:
@@ -519,6 +537,10 @@ def execute_tool_call(tool_call) -> dict:
                 "message": "Tool execution failed",
             },
         }
+    finally:
+        elapsed = time.perf_counter() - start
+
+        print(f"[END {tool_call.function.name}] " f"{elapsed:.4f}s")
 
 
 def validate_arguments(tool_name: str, arguments: dict) -> dict:
