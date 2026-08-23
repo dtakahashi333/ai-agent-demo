@@ -2,8 +2,8 @@
 
 from unittest import TestCase
 
-from models.agent_state import AgentState
-from models.customer import Customer
+from state.agent_state import AgentState
+from state.customer import Customer
 
 
 class TestAgentState(TestCase):

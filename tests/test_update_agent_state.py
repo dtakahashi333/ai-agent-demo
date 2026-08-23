@@ -4,8 +4,8 @@ from unittest import TestCase
 from unittest.mock import Mock
 
 from agent import update_agent_state
-from models.agent_state import AgentState
-from models.customer import Customer
+from state.agent_state import AgentState
+from state.customer import Customer
 
 
 class TestUpdateAgentState(TestCase):

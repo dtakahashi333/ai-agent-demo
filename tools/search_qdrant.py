@@ -2,8 +2,8 @@
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from qdrant_client import QdrantClient
 
-model = SentenceTransformer("llm/BAAI/bge-small-en-v1.5")
-reranker = CrossEncoder("llm/BAAI/bge-reranker-base")
+model = SentenceTransformer("models/BAAI/bge-small-en-v1.5")
+reranker = CrossEncoder("models/BAAI/bge-reranker-base")
 
 vecdb_client = QdrantClient("localhost", port=6333)
 

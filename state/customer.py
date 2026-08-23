@@ -1,4 +1,4 @@
-# models/customer.py
+# state/customer.py
 from dataclasses import dataclass, field
 
 

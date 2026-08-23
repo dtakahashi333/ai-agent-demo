@@ -9,9 +9,9 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from types import SimpleNamespace
 
-from models.agent_state import AgentState
+from state.agent_state import AgentState
 from config import config
-from models.customer import Customer
+from state.customer import Customer
 from tool_registry import build_llm_tools, tool_registry
 
 from prompts.agent_prompt import SYSTEM_PROMPT

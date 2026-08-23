@@ -1,7 +1,7 @@
-# models/agent_state.py
+# state/agent_state.py
 from dataclasses import dataclass, field
 
-from models.customer import Customer
+from state.customer import Customer
 
 """
 |State                        | Lifetime      | Location       |
