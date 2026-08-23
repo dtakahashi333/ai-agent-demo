@@ -63,11 +63,15 @@ def get_weather(city: str) -> dict:
     current = weather_data["current"]
 
     return {
-        "city": location["name"],
-        "temperature": current["temperature_2m"],
-        "temperature_unit": "°F",
-        "humidity": current["relative_humidity_2m"],
-        "wind_speed": current["wind_speed_10m"],
-        "wind_speed_unit": "mph",
-        "weather_code": current["weather_code"],
+        "success": True,
+        "data": {
+            "city": location["name"],
+            "temperature": current["temperature_2m"],
+            "temperature_unit": "°F",
+            "humidity": current["relative_humidity_2m"],
+            "wind_speed": current["wind_speed_10m"],
+            "wind_speed_unit": "mph",
+            "weather_code": current["weather_code"],
+        },
+        "error": None,
     }
