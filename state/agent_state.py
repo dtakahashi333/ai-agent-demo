@@ -66,3 +66,6 @@ class AgentState:
             raise ValueError("retrieved result count cannot be negative")
 
         self.retrieved_count += count
+
+    def record_failed_tool_call(self, signature: str) -> None:
+        self.seen_failed_tool_calls.add(signature)

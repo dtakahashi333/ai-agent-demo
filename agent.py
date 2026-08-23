@@ -410,7 +410,7 @@ def record_tool_failure(
     result: dict,
 ) -> None:
     if result["success"] is False and result["error"]["type"] == "invalid_arguments":
-        state.seen_failed_tool_calls.add(tool_call_signature)
+        state.record_failed_tool_call(tool_call_signature)
 
 
 def update_agent_state(

@@ -74,3 +74,28 @@ class TestAgentState(TestCase):
 
         with self.assertRaises(ValueError):
             state.add_retrieved_results(-1)
+
+    def test_record_failed_tool_call(self):
+        state = AgentState()
+
+        signature = 'get_customer:{"customer_id":999}'
+
+        state.record_failed_tool_call(signature)
+
+        self.assertIn(
+            signature,
+            state.seen_failed_tool_calls,
+        )
+
+    def test_record_failed_tool_call_is_idempotent(self):
+        state = AgentState()
+
+        signature = 'get_customer:{"customer_id":999}'
+
+        state.record_failed_tool_call(signature)
+        state.record_failed_tool_call(signature)
+
+        self.assertEqual(
+            len(state.seen_failed_tool_calls),
+            1,
+        )
