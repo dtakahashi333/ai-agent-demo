@@ -1,7 +1,9 @@
 # agent.py
+from concurrent.futures import ThreadPoolExecutor
 import os
 import json
 from time import time
+from typing import List, Optional
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 from openai import OpenAI
@@ -35,7 +37,10 @@ repeated_tool_call_error = {
     "data": None,
     "error": {
         "type": "repeated_tool_call",
-        "message": "The same tool call was already attempted and failed. Do not repeat it; change the approach.",
+        "message": (
+            "The same tool call was already attempted and "
+            "failed. Do not repeat it; change the approach."
+        ),
     },
 }
 # same call appeared twice in the same response
@@ -44,7 +49,10 @@ duplicate_tool_call_error = {
     "data": None,
     "error": {
         "type": "duplicate_tool_call",
-        "message": "This exact tool call was already requested in the current tool-call batch.",
+        "message": (
+            "This exact tool call was already requested "
+            "in the current tool-call batch."
+        ),
     },
 }
 # found more customers than LLM can safely retrieve
@@ -56,6 +64,17 @@ too_many_results_error = {
         "message": (
             "The requested result set exceeds the maximum "
             "retrieval limit of 100 customers."
+        ),
+    },
+}
+retrieval_limit_exceeded_error = {
+    "success": False,
+    "data": None,
+    "error": {
+        "type": "retrieval_limit_exceeded",
+        "message": (
+            "This tool call was not executed because the "
+            "agent's maximum retrieval limit was reached."
         ),
     },
 }
@@ -187,8 +206,6 @@ def run_agent(
     response = llm_call(messages)
     message = response.choices[0].message
 
-    # print(response.model_dump_json())
-
     counter = 0
     seen_failed_tool_calls = set()
     retrieved_count = 0
@@ -197,40 +214,89 @@ def run_agent(
 
         counter += 1
 
-        # First: record what the assistant requested
+        # Agent-level budget allocation
+        allowed_call_ids = allocate_retrieval_budget(
+            message.tool_calls,
+            retrieved_count,
+        )
+
+        # Record what the assistant requested
         messages.append(message.model_dump())
 
-        # Then: execute each requested tool
+        # Validate each requested tool call
         seen_tool_calls_in_iteration = set()
+
+        approved_calls = []
         results = []
 
+        # Then process each call
         for tool_call in message.tool_calls:
 
-            if (
-                tool_call.function.name == "search_customers"
-                and retrieved_count >= config["max_retrieved_results"]
-            ):
-                result = too_many_results_error
-            else:
-                result = process_tool_call(
-                    tool_call,
-                    seen_failed_tool_calls,
-                    seen_tool_calls_in_iteration,
+            if tool_call.id not in allowed_call_ids:
+                results.append(
+                    build_tool_result_message(
+                        tool_call,
+                        retrieval_limit_exceeded_error,
+                    )
                 )
+                continue
+
+            policy, signature = validate_tool_call(
+                tool_call,
+                seen_failed_tool_calls,
+                seen_tool_calls_in_iteration,
+            )
+
+            if policy == "duplicate":
+                results.append(
+                    build_tool_result_message(
+                        tool_call,
+                        duplicate_tool_call_error,
+                    )
+                )
+
+            elif policy == "repeated":
+                results.append(
+                    build_tool_result_message(
+                        tool_call,
+                        repeated_tool_call_error,
+                    )
+                )
+
+            elif policy == "allowed":
+                approved_calls.append((tool_call, signature))
+
+        # Execute approved calls in parallel
+        executed_calls = execute_approved_calls(approved_calls)
+
+        for tool_call, tool_call_signature, result in executed_calls:
 
             print(result)
 
-            if tool_call.function.name == "search_customers":
-                data = json.loads(result["content"])
-                if data["success"]:
-                    retrieved_count += len(data["data"]["customers"])
+            if (
+                result["success"] is False
+                and result["error"]["type"] == "invalid_arguments"
+            ):
+                seen_failed_tool_calls.add(tool_call_signature)
 
-            results.append(result)
+            if tool_call.function.name == "search_customers":
+                if result["success"] is True:
+                    retrieved_count += len(result["data"]["customers"])
+
+            results.append(
+                build_tool_result_message(
+                    tool_call,
+                    result,
+                )
+            )
 
         messages += results
 
         if estimate_message_tokens(messages) > config["max_estimated_context_tokens"]:
-            return "Agent stopped because the estimated context size exceeds the maximum allowed token count."
+            return (
+                "Agent stopped because the estimated context "
+                "size exceeds the maximum allowed token count."
+            )
 
         # Ask the LLM what to do next
         response = llm_call(messages)
@@ -244,6 +310,42 @@ def run_agent(
     # print(json.dumps(messages))
 
     return message.content
+
+
+def allocate_retrieval_budget(
+    tool_calls,
+    retrieved_count: int,
+) -> set:
+    remaining = config["max_retrieved_results"] - retrieved_count
+    allowed = set()
+
+    for tool_call in tool_calls:
+        if tool_call.function.name != "search_customers":
+            allowed.add(tool_call.id)
+            continue
+
+        if remaining < config["page_size"]:
+            continue
+
+        allowed.add(tool_call.id)
+        remaining -= config["page_size"]
+
+    return allowed
+
+
+def execute_approved_calls(approved_calls) -> List[tuple]:
+
+    with ThreadPoolExecutor(max_workers=len(approved_calls)) as executor:
+
+        futures = [
+            executor.submit(execute_tool_call, tool_call)
+            for tool_call, _ in approved_calls
+        ]
+
+        return [
+            (tool_call, signature, future.result())
+            for (tool_call, signature), future in zip(approved_calls, futures)
+        ]
 
 
 def estimate_message_tokens(messages) -> int:
@@ -282,11 +384,11 @@ def build_tool_result_message(tool_call, result) -> dict:
     }
 
 
-def process_tool_call(
+def validate_tool_call(
     tool_call,
     seen_failed_tool_calls: set,
     seen_tool_calls_in_iteration: set,
-) -> dict:
+) -> tuple:
     signature = make_tool_call_signature(tool_call)
 
     policy = check_tool_call_policy(
@@ -295,34 +397,11 @@ def process_tool_call(
         seen_failed_tool_calls,
     )
 
-    if policy == "duplicate":
-        return build_tool_result_message(
-            tool_call,
-            duplicate_tool_call_error,
-        )
-
-    elif policy == "repeated":
-        return build_tool_result_message(
-            tool_call,
-            repeated_tool_call_error,
-        )
-
-    else:
+    if policy == "allowed":
         # Record the call BEFORE executing it
         seen_tool_calls_in_iteration.add(signature)
 
-        result = execute_tool_call(tool_call)
-
-        if (
-            result["success"] == False
-            and result["error"]["type"] == "invalid_arguments"
-        ):
-            seen_failed_tool_calls.add(signature)
-
-        return build_tool_result_message(
-            tool_call,
-            result,
-        )
+    return policy, signature
 
 
 def call_llm(messages: list[any], tool_choice=None) -> dict:
@@ -417,8 +496,6 @@ def execute_tool_call(tool_call) -> dict:
         for attempt in range(config["max_retries"] + 1):
 
             result = function(**arguments)
-
-            print(result)
 
             if result["success"]:
                 return result
