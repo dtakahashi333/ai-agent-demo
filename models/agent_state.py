@@ -49,3 +49,14 @@ class AgentState:
 
         if self.retrieved_count < 0:
             raise ValueError("retrieved_count cannot be negative")
+
+    def select_customer(self, data: dict) -> None:
+        if data["id"] <= 0:
+            raise ValueError("customer id must be positive")
+
+        self.selected_customer = Customer(
+            data["id"],
+            data["name"],
+            data["email"],
+            data["plan"],
+        )

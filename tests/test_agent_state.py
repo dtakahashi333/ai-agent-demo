@@ -42,3 +42,18 @@ class TestAgentState(TestCase):
             state.selected_customer.name,
             "Alice Smith",
         )
+
+    def test_select_customer(self):
+        state = AgentState()
+
+        data = {
+            "id": 42,
+            "name": "Alice Smith",
+            "email": "alice@example.com",
+            "plan": "premium",
+        }
+
+        state.select_customer(data)
+
+        self.assertIsNotNone(state.selected_customer)
+        self.assertEqual(state.selected_customer.id, 42)
