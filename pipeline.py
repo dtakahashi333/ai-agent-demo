@@ -14,12 +14,8 @@ reranker = CrossEncoder("BAAI/bge-reranker-base")
 vecdb_client = QdrantClient("localhost", port=6333)
 
 llm_client = OpenAI(
-    # API keys vary by region. To get an API key, visit: https://www.alibabacloud.com/help/zh/model-studio/get-api-key
-    api_key=os.getenv("DASHSCOPE_API_KEY"),
-    # The following base_url is for the Singapore region. If you use a model in the US East 1 (Virginia) region, change the base_url to https://dashscope-us.aliyuncs.com/compatible-mode/v1.
-    # If you use a model in the China (Beijing) region, change the base_url to https://dashscope.aliyuncs.com/compatible-mode/v1.
-    # base_url="https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
-    base_url="https://ws-a95hgp91msvbk42j.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+    api_key=os.getenv("LLM_API_KEY"),
+    base_url=os.getenv("LLM_BASE_URL"),
 )
 
 queries = [
@@ -69,8 +65,7 @@ Answer:
     # # print(prompt)
 
     # completion = llm_client.chat.completions.create(
-    #     # This example uses qwen-plus. You can replace it with another model name as needed. Model list: https://www.alibabacloud.com/help/en/model-studio/getting-started/models
-    #     model="qwen-plus",
+    #     model=os.getenv("LLM_MODEL"),
     #     messages=[
     #         {"role": "system", "content": "You are a helpful assistant."},
     #         {"role": "user", "content": prompt},
@@ -88,7 +83,6 @@ Answer:
     # print(f"Response saved to response-{file_num}.json")
 
     # completion = llm_client.chat.completions.create(
-    #     # This example uses qwen-plus. You can replace it with another model name as needed. Model list: https://www.alibabacloud.com/help/en/model-studio/getting-started/models
     #     model="qwen-plus",
     #     messages=[
     #         {"role": "system", "content": "You are a helpful assistant."},

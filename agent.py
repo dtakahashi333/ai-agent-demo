@@ -3,13 +3,13 @@ from concurrent.futures import ThreadPoolExecutor
 import os
 import json
 import time
-from typing import List, Optional
 from jsonschema import validate
 from jsonschema.exceptions import ValidationError
 from openai import OpenAI
 from dotenv import load_dotenv
 from types import SimpleNamespace
 
+from agent_state import AgentState
 from config import config
 from tool_registry import build_llm_tools, tool_registry
 
@@ -185,6 +185,8 @@ def run_agent(
     * internal policy bookkeeping
     """
 
+    state = AgentState()
+
     if llm_call is None:
         llm_call = call_llm
 
@@ -220,18 +222,14 @@ def run_agent(
 
     print("\n".join(str(tool_call) for tool_call in message.tool_calls))
 
-    counter = 0
-    seen_failed_tool_calls = set()
-    retrieved_count = 0
+    while message.tool_calls and state.iteration < config["max_iterations"]:
 
-    while message.tool_calls and counter < config["max_iterations"]:
-
-        counter += 1
+        state.iteration += 1
 
         # Agent-level budget allocation
         allowed_call_ids = allocate_retrieval_budget(
             message.tool_calls,
-            retrieved_count,
+            state.retrieved_count,
         )
 
         # Record what the assistant requested
@@ -257,7 +255,7 @@ def run_agent(
 
             policy, signature = validate_tool_call(
                 tool_call,
-                seen_failed_tool_calls,
+                state.seen_failed_tool_calls,
                 seen_tool_calls_in_iteration,
             )
 
@@ -291,11 +289,11 @@ def run_agent(
                 result["success"] is False
                 and result["error"]["type"] == "invalid_arguments"
             ):
-                seen_failed_tool_calls.add(tool_call_signature)
+                state.seen_failed_tool_calls.add(tool_call_signature)
 
             if tool_call.function.name == "search_customers":
                 if result["success"] is True:
-                    retrieved_count += len(result["data"]["customers"])
+                    state.retrieved_count += len(result["data"]["customers"])
 
             results.append(
                 build_tool_result_message(
@@ -347,7 +345,7 @@ def allocate_retrieval_budget(
     return allowed
 
 
-def execute_approved_calls(approved_calls) -> List[tuple]:
+def execute_approved_calls(approved_calls) -> list[tuple]:
 
     if not approved_calls:
         return []
