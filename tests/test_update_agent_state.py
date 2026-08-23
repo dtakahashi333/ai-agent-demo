@@ -330,3 +330,29 @@ class TestUpdateAgentState(TestCase):
 
         self.assertEqual(state.retrieved_count, 1)
         self.assertIsNone(state.selected_customer)
+
+    def test_get_weather_does_not_modify_agent_state(self):
+        state = AgentState(
+            retrieved_count=5,
+        )
+
+        tool_call = Mock()
+        tool_call.function.name = "get_weather"
+
+        result = {
+            "success": True,
+            "data": {
+                "city": "Dallas",
+                "temperature": 96.3,
+            },
+            "error": None,
+        }
+
+        update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
+
+        self.assertEqual(state.retrieved_count, 5)
+        self.assertIsNone(state.selected_customer)

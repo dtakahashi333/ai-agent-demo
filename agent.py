@@ -410,6 +410,20 @@ def record_tool_failure(
         state.record_failed_tool_call(tool_call_signature)
 
 
+"""
+Only tools that produce information relevant to agent working state should update AgentState.
+For example:
+| Tool             | State update?           |
+|------------------|-------------------------|
+| search_customers | Yes → retrieved_count   |
+| get_customer     | Yes → selected_customer |
+| get_weather      | No                      |
+| calculator       | No                      |
+| search_documents | No, for now             |
+| get_order        | No, for now             |
+"""
+
+
 def update_agent_state(
     state: AgentState,
     tool_call,
