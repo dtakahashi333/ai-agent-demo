@@ -143,3 +143,54 @@ class TestAgentState(TestCase):
                 {"role": "assistant", "content": "Hi"},
             ],
         )
+
+    def test_initialize_messages(self):
+        state = AgentState()
+
+        state.initialize_messages(
+            "You are a helpful assistant.",
+            "Find Alice.",
+        )
+
+        self.assertEqual(
+            state.messages,
+            [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant.",
+                },
+                {
+                    "role": "user",
+                    "content": "Find Alice.",
+                },
+            ],
+        )
+
+    def test_initialize_messages_replaces_existing_messages(self):
+        state = AgentState(
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Old message",
+                }
+            ]
+        )
+
+        state.initialize_messages(
+            "System",
+            "New request",
+        )
+
+        self.assertEqual(
+            state.messages,
+            [
+                {
+                    "role": "system",
+                    "content": "System",
+                },
+                {
+                    "role": "user",
+                    "content": "New request",
+                },
+            ],
+        )

@@ -213,10 +213,7 @@ def run_agent(
 
     system_prompt = SYSTEM_PROMPT + "\n\n" + agent_policy
 
-    state.messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": query},
-    ]
+    state.initialize_messages(system_prompt, query)
 
     # Ask the LLM what to do next
     message = call_agent_llm(state.messages, llm_call)
