@@ -44,6 +44,28 @@ class AgentState:
 
     seen_failed_tool_calls: set[str] = field(default_factory=set)
 
+    """
+                   Plan
+                    │
+            intended workflow
+                    │
+                    ↓
+                PlanExecutor
+                    │
+                    ↓
+                AgentState
+            ┌───────┴────────┐
+            │                │
+    completed steps      semantic facts
+            │                │
+            └───────┬────────┘
+                    ↓
+                Replan
+                    ↓
+                New Plan
+    """
+
+    # semantic state
     retrieved_customer: Customer | None = (
         None  # exactly one successfully retrieved customer
     )

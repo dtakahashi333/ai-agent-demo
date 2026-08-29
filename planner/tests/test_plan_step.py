@@ -2,7 +2,7 @@
 
 from unittest import TestCase
 
-from planner.step import PlanStep
+from planner.plan_step import PlanStep
 
 
 class TestPlanStep(TestCase):

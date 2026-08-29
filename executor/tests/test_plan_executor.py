@@ -1,8 +1,8 @@
-# planner/tests/test_executor.py
+# executor/tests/test_executor.py
 
 from unittest import TestCase
 
-from planner.executor import PlanExecutor, StepStatus
+from executor.plan_executor import PlanExecutor, StepStatus
 from planner.plan import Plan
 from planner.step import PlanStep
 

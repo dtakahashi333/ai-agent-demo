@@ -1,7 +1,7 @@
 # planner/plan.py
 from dataclasses import dataclass
 
-from planner.step import PlanStep
+from planner.plan_step import PlanStep
 
 """
         PLAN

@@ -1,8 +1,8 @@
-# planner/validator.py
+# planner/plan_validator.py
 from dataclasses import dataclass, field
 
 from planner.plan import Plan
-from planner.step import PlanStep
+from planner.plan_step import PlanStep
 
 
 @dataclass

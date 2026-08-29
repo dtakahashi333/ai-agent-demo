@@ -3,11 +3,11 @@
 from unittest import TestCase
 
 from planner.plan import Plan
-from planner.step import PlanStep
+from planner.plan_step import PlanStep
 
 
 class TestPlan(TestCase):
-    
+
     def test_plan_can_contain_steps(self):
         plan = Plan(
             steps=[

@@ -1,10 +1,10 @@
-# planner/tests/test_validator.py
+# planner/tests/test_plan_validator.py
 
 from unittest import TestCase
 
 from planner.plan import Plan
-from planner.step import PlanStep
-from planner.validator import PlanValidator
+from planner.plan_step import PlanStep
+from planner.plan_validator import PlanValidator
 
 
 class TestPlanValidator(TestCase):
