@@ -4,15 +4,19 @@ from dataclasses import dataclass
 from enum import StrEnum
 import json
 import time
+from typing import Any, Callable
 from jsonschema import ValidationError, validate
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
 )
 
-from config import config
+from config.settings import config
 from state.agent_state import AgentState
 from tool_registry import tool_registry
+from prompts.agent_prompt import build_agent_system_prompt
+
+ReActLLMCall = Callable[..., Any]
 
 
 @dataclass
@@ -166,14 +170,37 @@ class ToolCallPolicy(StrEnum):
 
 
 class ReActExecutor:
-    def __init__(self, llm_call):
+    def __init__(
+        self,
+        llm_call: ReActLLMCall,
+        config: dict,
+    ):
         self.llm_call = llm_call
+        self.system_prompt = build_agent_system_prompt(config)
 
     def execute(
         self,
         objective: str,
         state: AgentState,
     ) -> ReActExecutionResult:
+        """
+        If the LLM needs to know it → put it in messages
+        Examples:
+        * user request
+        * previous tool calls
+        * tool results
+        * pagination results
+        * previous assistant responses
+
+        If only the Python agent needs it → keep it as execution state
+        Examples:
+        * iteration counter
+        * duplicate-call tracking
+        * retry counters
+        * internal policy bookkeeping
+        """
+
+        state.initialize_messages(self.system_prompt)
         state.add_messages(
             [
                 {

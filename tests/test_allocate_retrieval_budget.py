@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 from agent import allocate_retrieval_budget
 from state.agent_state import AgentState
-from config import config
+from config.settings import config
 
 
 class TestAllocateRetrievalBudget(TestCase):

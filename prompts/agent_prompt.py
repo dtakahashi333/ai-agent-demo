@@ -1,6 +1,6 @@
 # prompts/agent_prompt.py
 
-SYSTEM_PROMPT = """
+AGENT_SYSTEM_PROMPT: str = """
 You are a helpful AI assistant with access to the following tools.
 
 ### Available tools
@@ -170,3 +170,24 @@ Answer user
 
 The assistant should choose tools based on their descriptions and the user's request.
 """
+
+
+def build_agent_system_prompt(config) -> str:
+    agent_policy = "Agent retrieval policy:\n"
+    agent_policy += (
+        f"- Maximum total customers that may be retrieved: "
+        f"{config['max_retrieved_results']}\n"
+    )
+    agent_policy += (
+        "When a tool returns has_more=true and the user's request "
+        "requires all matching results, continue retrieving pages "
+        "using next_cursor. Do not claim that all results have been "
+        "retrieved until has_more=false.\n"
+    )
+    agent_policy += (
+        "When multiple requested tool calls are independent, request them "
+        "together in the same tool-call response so they can be executed "
+        "in parallel. Do not wait for one independent call to finish before "
+        "requesting another.\n"
+    )
+    return AGENT_SYSTEM_PROMPT + "\n\n" + agent_policy

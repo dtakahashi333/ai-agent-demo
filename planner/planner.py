@@ -1,7 +1,12 @@
 # planner/planner.py
+from typing import Any, Callable
+
 from planner.plan import Plan
 from planner.plan_step import PlanStep
 from planner.plan_validator import PlanValidator
+from prompts.planner_prompt import PLANNER_SYSTEM_PROMPT
+
+LLMCall = Callable[[list[dict[str, str]]], Any]
 
 """
 For the initial plan:
@@ -61,21 +66,13 @@ Planner benefits:
 
 
 class Planner:
-    system_prompt: str = (
-        "You are a planning agent. "
-        "Break the user's objective into clear, executable steps. "
-        "Give each step a unique ID. "
-        "Use dependencies to express which steps must be "
-        "completed first. "
-        "Every dependency must reference an existing step. "
-        "Do not create circular dependencies. "
-        "Only create steps that can be accomplished using "
-        "the available capabilities."
-    )
-
-    def __init__(self, llm_call):
+    def __init__(
+        self,
+        llm_call: LLMCall,
+    ):
         self.llm_call = llm_call
         self.validator = PlanValidator()
+        self.system_prompt = PLANNER_SYSTEM_PROMPT
 
     def plan(
         self,
@@ -144,12 +141,38 @@ class Planner:
         6. Don't create circular dependencies.
         7. Make the final steps collectively accomplish the user's objective.
         """
+        # capabilities_text = "\n".join(f"- {capability}" for capability in capabilities)
+
+        # return [
+        #     {
+        #         "role": "system",
+        #         "content": self.system_prompt,
+        #     },
+        #     {
+        #         "role": "user",
+        #         "content": (
+        #             f"Objective:\n{objective}\n\n"
+        #             f"Available capabilities:\n{capabilities_text}"
+        #         ),
+        #     },
+        # ]
         capabilities_text = "\n".join(f"- {capability}" for capability in capabilities)
 
         return [
             {
                 "role": "system",
-                "content": self.system_prompt,
+                "content": (
+                    "You are a planning agent.\n\n"
+                    "Create an executable plan to accomplish the user's objective.\n"
+                    "Each step must represent one concrete objective that can be "
+                    "executed by an agent.\n"
+                    "Use only the available capabilities.\n"
+                    "Represent dependencies between steps when one step requires "
+                    "the result of another step.\n"
+                    "Do not create unnecessary steps.\n"
+                    "The plan must be logically ordered and must not contain "
+                    "circular dependencies."
+                ),
             },
             {
                 "role": "user",

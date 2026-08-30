@@ -1,4 +1,4 @@
-# config.py
+# config/settings.py
 
 config = {
     "page_size": 5,

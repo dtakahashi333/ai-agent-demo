@@ -1,16 +1,23 @@
 # agent.py
 import os
 import json
+
 from openai import OpenAI
 from dotenv import load_dotenv
 from types import SimpleNamespace
 
+from config.agent_config import AgentConfig
+from executor.plan_executor import (
+    PlanExecutionResult,
+    PlanExecutor,
+)
 from executor.react_executor import ReActExecutor
+from llm.planner_llm import PlannerLLM
+from llm.react_llm import ReActLLM
+from planner.planner import Planner
 from state.agent_state import AgentState
-from config import config
+from config.settings import config
 from tool_registry import build_llm_tools, tool_registry
-
-from prompts.agent_prompt import SYSTEM_PROMPT
 
 load_dotenv()
 
@@ -78,59 +85,71 @@ def mock_call_llm(messages):
 
 def run_agent(
     query: str,
-    llm_call=None,
-) -> str:
+    planner_llm=None,
+    react_llm=None,
+) -> PlanExecutionResult:
     """
-    If the LLM needs to know it → put it in messages
-    Examples:
-    * user request
-    * previous tool calls
-    * tool results
-    * pagination results
-    * previous assistant responses
+    run_agent
+        │
+        ├── creates/configures OpenAI client
+        │
+        ├── creates PlannerLLM
+        │
+        ├── creates Planner
+        │
+        └── creates PlanExecutor
 
-    If only the Python agent needs it → keep it as execution state
-    Examples:
-    * iteration counter
-    * duplicate-call tracking
-    * retry counters
-    * internal policy bookkeeping
+    High-level flow:
+    User query
+        ↓
+    run_agent()
+        ↓
+    Planner.plan()
+        ↓
+    Plan
+        ↓
+    PlanExecutor.execute()
+        ↓
+    ReActExecutor.execute()
+        ↓
+    AgentState
+        ↓
+    LLM / tools
     """
-
+    agent_config = AgentConfig()
     state = AgentState()
 
-    if llm_call is None:
-        llm_call = call_llm
+    model = os.getenv("LLM_MODEL")
 
-    agent_policy = "Agent retrieval policy:\n"
-    agent_policy += (
-        f"- Maximum total customers that may be retrieved: "
-        f"{config['max_retrieved_results']}\n"
+    if planner_llm is None:
+        planner_llm = PlannerLLM(
+            client=client,
+            model=model,
+        )
+
+    if react_llm is None:
+        react_llm = ReActLLM(
+            client=client,
+            tools=tools,
+        )
+
+    planner = Planner(
+        llm_call=planner_llm,
     )
 
-    agent_policy += (
-        "When a tool returns has_more=true and the user's request "
-        "requires all matching results, continue retrieving pages "
-        "using next_cursor. Do not claim that all results have been "
-        "retrieved until has_more=false.\n"
-    )
-
-    agent_policy += (
-        "When multiple requested tool calls are independent, request them "
-        "together in the same tool-call response so they can be executed "
-        "in parallel. Do not wait for one independent call to finish before "
-        "requesting another.\n"
-    )
-
-    system_prompt = SYSTEM_PROMPT + "\n\n" + agent_policy
-
-    state.initialize_messages(system_prompt)
-
-    react_executor = ReActExecutor(llm_call=call_llm)
-
-    result = react_executor.execute(
+    plan = planner.plan(
         objective=query,
-        state=state,
+        capabilities=agent_config.capabilities,
     )
 
-    return result.response
+    react_executor = ReActExecutor(
+        llm_call=react_llm,
+        config=config,
+    )
+
+    plan_executor = PlanExecutor(
+        plan=plan,
+        react_executor=react_executor,
+    )
+
+    return plan_executor.execute(state)

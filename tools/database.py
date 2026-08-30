@@ -1,7 +1,7 @@
 # tools/database.py
 import psycopg
 
-from config import config
+from config.settings import config
 
 # there are more results than the allowed maximum
 too_many_results_error = {

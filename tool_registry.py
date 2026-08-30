@@ -1,5 +1,7 @@
 # tool_registry.py
 # actual Python functions
+from typing import Any
+
 from tools.calculator import calculator
 from tools.database import (
     count_customers,
@@ -164,7 +166,10 @@ tool_registry = {
 }
 
 
-def build_llm_tools(tool_registry, config):
+def build_llm_tools(
+    tool_registry: dict[str, Any],
+    config: dict[str, Any],
+) -> list[dict[str, Any]]:
     return [
         {
             "type": "function",
