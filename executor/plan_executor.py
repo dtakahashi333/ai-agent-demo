@@ -184,16 +184,25 @@ class PlanExecutor:
     not READY and not BLOCKED
     """
 
-    steps = list[PlanStep]
+    react_executor: ReActExecutor
+
+    steps: list[PlanStep]
     steps_by_id: dict[str, PlanStep]
 
     completed_steps: set[str]
     failed_steps: set[str]
     in_progress_step: str | None
 
-    def __init__(self, plan: Plan):
+    def __init__(
+        self,
+        plan: Plan,
+        react_executor: ReActExecutor,
+    ):
+        self.react_executor = react_executor
+
         self.steps = plan.steps
         self.steps_by_id = {step.id: step for step in plan.steps}
+
         self.completed_steps = set()
         self.failed_steps = set()
         self.in_progress_step = None
@@ -254,7 +263,6 @@ class PlanExecutor:
 
     def execute(
         self,
-        react_executor: ReActExecutor,
         state: AgentState,
     ) -> PlanExecutionResult:
         """
@@ -290,7 +298,7 @@ class PlanExecutor:
 
             self.in_progress_step = step.id
 
-            result = react_executor.execute(
+            result = self.react_executor.execute(
                 objective=step.description,
                 state=state,
             )

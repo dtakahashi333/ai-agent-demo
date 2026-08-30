@@ -1,0 +1,178 @@
+# planner/planner.py
+from planner.plan import Plan
+from planner.plan_step import PlanStep
+from planner.plan_validator import PlanValidator
+
+"""
+For the initial plan:
+
+User request
++
+available tools/capabilities
++
+planning instructions
+
+During replanning:
+
+Original user request
++
+current AgentState
++
+previous plan
++
+failure information
++
+new observations
+"""
+
+"""
+User request
+      ↓
+Planner
+      ↓
+Plan
+      ↓
+PlanExecutor
+      ↓
+ReActExecutor
+      ↓
+AgentState
+      ↓
+failure / observation / new fact
+      ↓
+build PlanningContext
+      ↓
+Planner
+      ↓
+new Plan
+"""
+
+"""
+Planner benefits:
+
+* Explicit workflow structure.
+* Observability — you can inspect the intended workflow.
+* Predictability — dependencies are explicit rather than implicit in conversation history.
+* Progress tracking — you can say exactly which high-level goals are complete.
+* Recovery — you can replan from partial progress.
+* Longer workflows — the agent doesn't have to rediscover the overall structure after every observation.
+* Human/debugging visibility — developers can inspect what the agent intended to accomplish.
+"""
+
+
+class Planner:
+    system_prompt: str = (
+        "You are a planning agent. "
+        "Break the user's objective into clear, executable steps. "
+        "Give each step a unique ID. "
+        "Use dependencies to express which steps must be "
+        "completed first. "
+        "Every dependency must reference an existing step. "
+        "Do not create circular dependencies. "
+        "Only create steps that can be accomplished using "
+        "the available capabilities."
+    )
+
+    def __init__(self, llm_call):
+        self.llm_call = llm_call
+        self.validator = PlanValidator()
+
+    def plan(
+        self,
+        objective: str,
+        capabilities: list[str],
+    ) -> Plan:
+        """
+                    Planner
+                      ↑
+            ┌─────────┴─────────┐
+            │                   │
+        objective         capabilities
+            │                   │
+            └─────────┬─────────┘
+                      ↓
+                     LLM
+                      ↓
+                     Plan
+        """
+
+        # If the Planner has no available capabilities, it should not call the LLM.
+        if not capabilities:
+            raise ValueError("Planner requires at least one capability.")
+
+        messages = self._build_messages(
+            objective,
+            capabilities,
+        )
+
+        response = self.llm_call(messages)
+
+        planning_response = response.choices[0].message.parsed
+
+        steps = [
+            PlanStep(
+                id=step.id,
+                description=step.description,
+                dependencies=step.dependencies,
+            )
+            for step in planning_response.steps
+        ]
+
+        plan = Plan(steps)
+
+        # Validate before returning
+        errors = self.validator.validate(plan)
+
+        if errors:
+            # raise ValueError(f"Invalid plan: {errors}")
+            raise ValueError(errors)
+
+        return plan
+
+    def _build_messages(
+        self,
+        objective: str,
+        capabilities: list[str],
+    ) -> list[dict[str, str]]:
+        """
+        What should the prompt specify?
+        1. Break the objective into meaningful steps.
+        2. Give every step a unique ID.
+        3. Describe one concrete objective per step.
+        4. Use dependencies to express ordering requirements.
+        5. Don't reference nonexistent step IDs.
+        6. Don't create circular dependencies.
+        7. Make the final steps collectively accomplish the user's objective.
+        """
+        capabilities_text = "\n".join(f"- {capability}" for capability in capabilities)
+
+        return [
+            {
+                "role": "system",
+                "content": self.system_prompt,
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Objective:\n{objective}\n\n"
+                    f"Available capabilities:\n{capabilities_text}"
+                ),
+            },
+        ]
+
+
+"""
+You are a planning agent.
+
+Break the user's objective into a sequence of executable steps.
+
+Each step must:
+- have a unique ID
+- have a clear description
+- list IDs of steps it depends on
+- only depend on steps that appear in the plan
+- form a valid dependency graph
+
+User objective:
+Create a summary of customer John.
+"""
