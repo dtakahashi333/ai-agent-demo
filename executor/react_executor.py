@@ -2,11 +2,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from enum import StrEnum
 import json
-import os
 import time
-from dotenv import load_dotenv
 from jsonschema import ValidationError, validate
-from openai import OpenAI
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
@@ -14,9 +11,7 @@ from openai.types.chat.chat_completion_message_tool_call import (
 
 from config import config
 from state.agent_state import AgentState
-from tool_registry import build_llm_tools, tool_registry
-
-load_dotenv()
+from tool_registry import tool_registry
 
 # same invalid call was already attempted
 repeated_tool_call_error = {
@@ -66,23 +61,94 @@ retrieval_limit_exceeded_error = {
     },
 }
 
-# Tool definitions sent to the LLM
-tools = build_llm_tools(tool_registry, config)
+RETRYABLE_ERRORS = {
+    "timeout",
+    "temporary_database_error",
+}
 
-client = OpenAI(
-    api_key=os.getenv("LLM_API_KEY"),
-    base_url=os.getenv("LLM_BASE_URL"),
-)
+"""
+| Result            | Meaning                                                     |
+| ------------------|-------------------------------------------------------------|
+| success           | Useful information was obtained                             |
+| invalid_arguments | The requested action was invalid                            |
+| not_found         | The action was valid, but the requested entity wasn't found |
+| database_error    | Infrastructure failed                                       |
+| timeout           | Infrastructure may have failed temporarily                  |
+"""
 
+"""
+| Situation                                         | Action  |
+|---------------------------------------------------|---------|
+| First invalid_arguments call                      | Execute |
+| Identical invalid_arguments call later            | Block   | 
+| Identical call in same response after first fails | Block   |
+| Successful call repeated                          | Allow   |
+| not_found repeated                                | Allow   |
+| database_error repeated                           | Allow   |
+| Different arguments                               | Allow   |
+| Different tool                                    | Allow   |
+"""
 
-def call_llm(messages: list[any], tool_choice=None) -> dict:
-    return client.chat.completions.create(
-        model=os.getenv("LLM_MODEL"),
-        messages=messages,
-        tools=tools,
-        tool_choice=tool_choice,
-        # extra_body={"enable_thinking": False},
-    )
+"""
+| Situation                              | Action          |
+|----------------------------------------|-----------------|
+| Same invalid call in later iteration   | Block           |
+| Same call twice in one response        | Block duplicate |
+| Same not_found call in later iteration | Allow           |
+| New arguments                          | Allow           |
+| New tool                               | Allow           |
+"""
+
+"""
+| Execution state   | Execution policy   |
+|-------------------|--------------------|
+| iteration_count   | max_iterations     |
+| tool_calls_used   | max_tool_calls     |
+| retries_performed | max_retries        |
+| elapsed_time.     | max_execution_time |
+"""
+
+"""
+Tool execution
+│
+├── State
+│   └── attempt
+│
+└── Policy
+    ├── max_retries
+    ├── retry_delay
+    └── retryable
+"""
+
+"""
+Agent execution
+│
+├── State
+│   ├── counter
+│   ├── messages
+│   └── seen_failed_tool_calls
+│
+└── Policy
+    └── max_iterations
+"""
+
+"""
+Conversation state
+└── messages
+
+Execution state
+├── iteration counter
+└── seen_failed_tool_calls
+
+This distinction becomes important if you ever build:
+
+* durable agents
+* background agents
+* pause/resume
+* crash recovery
+* long-running workflows
+* agent checkpoints
+"""
 
 
 class ToolCallPolicy(StrEnum):
@@ -92,8 +158,8 @@ class ToolCallPolicy(StrEnum):
 
 
 class ReActExecutor:
-    def __init__(self, llm_call=None):
-        self.llm_call = llm_call or call_llm
+    def __init__(self, llm_call):
+        self.llm_call = llm_call
 
     def execute(self, state: AgentState) -> str:
         # Ask the LLM what to do next

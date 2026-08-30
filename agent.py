@@ -23,95 +23,57 @@ client = OpenAI(
 )
 
 
-RETRYABLE_ERRORS = {
-    "timeout",
-    "temporary_database_error",
-}
+def call_llm(messages: list[any], tool_choice=None) -> dict:
+    return client.chat.completions.create(
+        model=os.getenv("LLM_MODEL"),
+        messages=messages,
+        tools=tools,
+        tool_choice=tool_choice,
+        # extra_body={"enable_thinking": False},
+    )
 
-"""
-| Result            | Meaning                                                     |
-| ------------------|-------------------------------------------------------------|
-| success           | Useful information was obtained                             |
-| invalid_arguments | The requested action was invalid                            |
-| not_found         | The action was valid, but the requested entity wasn't found |
-| database_error    | Infrastructure failed                                       |
-| timeout           | Infrastructure may have failed temporarily                  |
-"""
 
-"""
-| Situation                                         | Action  |
-|---------------------------------------------------|---------|
-| First invalid_arguments call                      | Execute |
-| Identical invalid_arguments call later            | Block   | 
-| Identical call in same response after first fails | Block   |
-| Successful call repeated                          | Allow   |
-| not_found repeated                                | Allow   |
-| database_error repeated                           | Allow   |
-| Different arguments                               | Allow   |
-| Different tool                                    | Allow   |
-"""
+def mock_call_llm(messages):
+    # First LLM response: deliberately make an invalid tool call.
+    if len(messages) == 2:
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=None,
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="call_1",
+                                function=SimpleNamespace(
+                                    name="get_customer",
+                                    arguments=json.dumps({"customer_id": "abc"}),
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ]
+        )
 
-"""
-| Situation                              | Action          |
-|----------------------------------------|-----------------|
-| Same invalid call in later iteration   | Block           |
-| Same call twice in one response        | Block duplicate |
-| Same not_found call in later iteration | Allow           |
-| New arguments                          | Allow           |
-| New tool                               | Allow           |
-"""
-
-"""
-| Execution state   | Execution policy   |
-|-------------------|--------------------|
-| iteration_count   | max_iterations     |
-| tool_calls_used   | max_tool_calls     |
-| retries_performed | max_retries        |
-| elapsed_time.     | max_execution_time |
-"""
-
-"""
-Tool execution
-│
-├── State
-│   └── attempt
-│
-└── Policy
-    ├── max_retries
-    ├── retry_delay
-    └── retryable
-"""
-
-"""
-Agent execution
-│
-├── State
-│   ├── counter
-│   ├── messages
-│   └── seen_failed_tool_calls
-│
-└── Policy
-    └── max_iterations
-"""
-
-"""
-Conversation state
-└── messages
-
-Execution state
-├── iteration counter
-└── seen_failed_tool_calls
-
-This distinction becomes important if you ever build:
-
-* durable agents
-* background agents
-* pause/resume
-* crash recovery
-* long-running workflows
-* agent checkpoints
-"""
-
+    # Second LLM response: deliberately repeat the exact same call.
+    return SimpleNamespace(
+        choices=[
+            SimpleNamespace(
+                message=SimpleNamespace(
+                    content=None,
+                    tool_calls=[
+                        SimpleNamespace(
+                            id="call_2",
+                            function=SimpleNamespace(
+                                name="get_customer",
+                                arguments=json.dumps({"customer_id": "abc"}),
+                            ),
+                        )
+                    ],
+                )
+            )
+        ]
+    )
 
 def run_agent(
     query: str,
@@ -166,56 +128,3 @@ def run_agent(
     executor = ReActExecutor(llm_call=call_llm)
 
     return executor.execute(state)
-
-
-def call_llm(messages: list[any], tool_choice=None) -> dict:
-    return client.chat.completions.create(
-        model=os.getenv("LLM_MODEL"),
-        messages=messages,
-        tools=tools,
-        tool_choice=tool_choice,
-        # extra_body={"enable_thinking": False},
-    )
-
-
-def mock_call_llm(messages):
-    # First LLM response: deliberately make an invalid tool call.
-    if len(messages) == 2:
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content=None,
-                        tool_calls=[
-                            SimpleNamespace(
-                                id="call_1",
-                                function=SimpleNamespace(
-                                    name="get_customer",
-                                    arguments=json.dumps({"customer_id": "abc"}),
-                                ),
-                            )
-                        ],
-                    )
-                )
-            ]
-        )
-
-    # Second LLM response: deliberately repeat the exact same call.
-    return SimpleNamespace(
-        choices=[
-            SimpleNamespace(
-                message=SimpleNamespace(
-                    content=None,
-                    tool_calls=[
-                        SimpleNamespace(
-                            id="call_2",
-                            function=SimpleNamespace(
-                                name="get_customer",
-                                arguments=json.dumps({"customer_id": "abc"}),
-                            ),
-                        )
-                    ],
-                )
-            )
-        ]
-    )
