@@ -1,14 +1,7 @@
 # main.py
-import json
-from types import SimpleNamespace
-
 from agent import (
     call_llm,
-    mock_call_llm,
     run_agent,
-    execute_tool_call,
-    build_llm_tools,
-    tool_registry,
 )
 from tools.weather import get_weather
 from tools.database import get_customer, get_order
