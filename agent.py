@@ -75,6 +75,7 @@ def mock_call_llm(messages):
         ]
     )
 
+
 def run_agent(
     query: str,
     llm_call=None,
@@ -123,8 +124,13 @@ def run_agent(
 
     system_prompt = SYSTEM_PROMPT + "\n\n" + agent_policy
 
-    state.initialize_messages(system_prompt, query)
+    state.initialize_messages(system_prompt)
 
-    executor = ReActExecutor(llm_call=call_llm)
+    react_executor = ReActExecutor(llm_call=call_llm)
 
-    return executor.execute(state)
+    result = react_executor.execute(
+        objective=query,
+        state=state,
+    )
+
+    return result.response

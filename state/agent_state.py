@@ -110,14 +110,12 @@ class AgentState:
     def initialize_messages(
         self,
         system_prompt: str,
-        query: str,
     ) -> None:
         """
         Start the state for a new agent run.
         """
         self.messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": query},
         ]
 
     def has_selected_customer(self) -> bool:

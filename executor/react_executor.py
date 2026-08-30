@@ -1,5 +1,6 @@
 # executor/react_executor.py
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from enum import StrEnum
 import json
 import time
@@ -12,6 +13,13 @@ from openai.types.chat.chat_completion_message_tool_call import (
 from config import config
 from state.agent_state import AgentState
 from tool_registry import tool_registry
+
+
+@dataclass
+class ReActExecutionResult:
+    success: bool
+    response: str
+
 
 # same invalid call was already attempted
 repeated_tool_call_error = {
@@ -161,7 +169,20 @@ class ReActExecutor:
     def __init__(self, llm_call):
         self.llm_call = llm_call
 
-    def execute(self, state: AgentState) -> str:
+    def execute(
+        self,
+        objective: str,
+        state: AgentState,
+    ) -> ReActExecutionResult:
+        state.add_messages(
+            [
+                {
+                    "role": "user",
+                    "content": objective,
+                }
+            ]
+        )
+
         # Ask the LLM what to do next
         message = self._call_agent_llm(state.messages, self.llm_call)
 
@@ -182,9 +203,12 @@ class ReActExecutor:
                 self._estimate_message_tokens(state.messages)
                 > config["max_estimated_context_tokens"]
             ):
-                return (
-                    "Agent stopped because the estimated context "
-                    "size exceeds the maximum allowed token count."
+                return ReActExecutionResult(
+                    success=False,
+                    response=(
+                        "Agent stopped because the estimated context "
+                        "size exceeds the maximum allowed token count."
+                    ),
                 )
 
             # Ask the LLM what to do next
@@ -193,11 +217,19 @@ class ReActExecutor:
             # print(response.model_dump_json())
 
         if message.tool_calls:
-            return "Agent stopped because the maximum iteration limit was reached."
+            return ReActExecutionResult(
+                success=False,
+                response=(
+                    "Agent stopped because the maximum iteration limit was reached."
+                ),
+            )
 
         # print(json.dumps(state.messages))
 
-        return message.content
+        return ReActExecutionResult(
+            success=True,
+            response=message.content,
+        )
 
     def _call_agent_llm(
         self,

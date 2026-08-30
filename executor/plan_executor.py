@@ -2,8 +2,9 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from executor.react_executor import ReActExecutor
 from planner.plan import Plan
-from planner.step import PlanStep
+from planner.plan_step import PlanStep
 from state.agent_state import AgentState
 
 """
@@ -251,7 +252,30 @@ class PlanExecutor:
 
         return None
 
-    def execute(self, react_executor, state) -> PlanExecutionResult:
+    def execute(
+        self,
+        react_executor: ReActExecutor,
+        state: AgentState,
+    ) -> PlanExecutionResult:
+        """
+        get next READY step
+                ↓
+        set in_progress_step
+                ↓
+        ReActExecutor.execute()
+                ↓
+        clear in_progress_step
+                ↓
+             success?
+           ┌────┴────┐
+          yes        no
+           ↓         ↓
+        completed  failed
+           │         │
+           └────┬────┘
+                ↓
+        next iteration
+        """
         while True:
             step = self.get_next_ready_step()
 
@@ -266,11 +290,14 @@ class PlanExecutor:
 
             self.in_progress_step = step.id
 
-            result = react_executor(step.description)
+            result = react_executor.execute(
+                objective=step.description,
+                state=state,
+            )
 
-            if result == "successful":
+            self.in_progress_step = None
+
+            if result.success:
                 self.completed_steps.add(step.id)
             else:
                 self.failed_steps.add(step.id)
-
-            self.in_progress_step = None
