@@ -11,7 +11,6 @@ from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
 )
 
-from config.settings import config
 from state.agent_state import AgentState
 from tool_registry import tool_registry
 from prompts.agent_prompt import build_agent_system_prompt
@@ -176,6 +175,7 @@ class ReActExecutor:
         config: dict,
     ):
         self.llm_call = llm_call
+        self.config = config
         self.system_prompt = build_agent_system_prompt(config)
 
     def execute(
@@ -215,7 +215,7 @@ class ReActExecutor:
 
         print("\n".join(str(tool_call) for tool_call in message.tool_calls))
 
-        while message.tool_calls and state.iteration < config["max_iterations"]:
+        while message.tool_calls and state.iteration < self.config["max_iterations"]:
 
             state.increment_iteration()
 
@@ -228,7 +228,7 @@ class ReActExecutor:
 
             if (
                 self._estimate_message_tokens(state.messages)
-                > config["max_estimated_context_tokens"]
+                > self.config["max_estimated_context_tokens"]
             ):
                 return ReActExecutionResult(
                     success=False,
@@ -364,7 +364,7 @@ class ReActExecutor:
         tool_calls: list[ChatCompletionMessageToolCall],
         retrieved_count: int,
     ) -> set[str]:
-        remaining = config["max_retrieved_results"] - retrieved_count
+        remaining = self.config["max_retrieved_results"] - retrieved_count
         allowed = set()
 
         for tool_call in tool_calls:
@@ -372,11 +372,11 @@ class ReActExecutor:
                 allowed.add(tool_call.id)
                 continue
 
-            if remaining < config["page_size"]:
+            if remaining < self.config["page_size"]:
                 continue
 
             allowed.add(tool_call.id)
-            remaining -= config["page_size"]
+            remaining -= self.config["page_size"]
 
         return allowed
 
@@ -504,7 +504,7 @@ class ReActExecutor:
         function = tool_registry[tool_name]["function"]
 
         try:
-            for attempt in range(config["max_retries"] + 1):
+            for attempt in range(self.config["max_retries"] + 1):
 
                 result = function(**arguments)
 
@@ -517,8 +517,8 @@ class ReActExecutor:
                 if not tool_registry[tool_name]["retryable"]:
                     return result
 
-                if attempt < config["max_retries"]:
-                    time.sleep(config["retry_delay"])
+                if attempt < self.config["max_retries"]:
+                    time.sleep(self.config["retry_delay"])
 
             return result
         except Exception:
