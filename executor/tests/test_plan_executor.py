@@ -1,30 +1,38 @@
 # executor/tests/test_executor.py
-
 from unittest import TestCase
 
-from executor.plan_executor import PlanExecutor, StepStatus
+from executor.plan_executor import PlanExecutionStatus, PlanExecutor, StepStatus
 from executor.react_executor import ReActExecutionResult
 from planner.plan import Plan
 from planner.plan_step import PlanStep
+from planner.planning_response import PlannedStep
 from state.agent_state import AgentState
 
 
 class FakeReActExecutor:
-    def __init__(self, success=True):
+    def __init__(
+        self,
+        success: bool = True,
+        response: str = "Done",
+    ):
         self.success = success
+        self.response = response
         self.objectives = []
 
-    def execute(self, objective, state):
+    def execute(
+        self,
+        objective: str,
+        state: AgentState,
+    ) -> ReActExecutionResult:
         self.objectives.append(objective)
 
         return ReActExecutionResult(
             success=self.success,
-            response="done",
+            response=self.response,
         )
 
 
 class TestGetStepStatus(TestCase):
-
     def setUp(self):
         super().setUp()
         self.steps = [
@@ -153,7 +161,6 @@ class TestGetStepStatus(TestCase):
 
 
 class TestGetNextReadyStep(TestCase):
-
     def setUp(self):
         super().setUp()
         self.steps = [
@@ -188,7 +195,6 @@ class TestGetNextReadyStep(TestCase):
 
 
 class TestExecute(TestCase):
-
     def setUp(self):
         super().setUp()
         self.steps = [
@@ -211,4 +217,71 @@ class TestExecute(TestCase):
         self.assertEqual(
             ["Find customer"],
             react_executor.objectives,
+        )
+
+    def test_dependent_step_is_blocked_after_failure(self):
+        state = AgentState()
+
+        plan = Plan(
+            steps=[
+                PlannedStep(
+                    id="step1",
+                    description="Find customer",
+                    dependencies=[],
+                ),
+                PlannedStep(
+                    id="step2",
+                    description="Get customer orders",
+                    dependencies=["step1"],
+                ),
+            ]
+        )
+
+        react_executor = FakeReActExecutor(
+            success=False,
+            response="Failed",
+        )
+
+        plan_executor = PlanExecutor(
+            plan=plan,
+            react_executor=react_executor,
+        )
+
+        result = plan_executor.execute(state)
+
+        self.assertEqual(
+            result.status,
+            PlanExecutionStatus.NEEDS_REPLAN,
+        )
+
+    def test_returns_final_response(self):
+        state = AgentState()
+
+        plan = Plan(
+            steps=[
+                PlanStep(
+                    id="step1",
+                    description="Find customer",
+                    dependencies=[],
+                ),
+            ]
+        )
+
+        react_executor = FakeReActExecutor(
+            success=True,
+            response="Customer found",
+        )
+
+        plan_executor = PlanExecutor(
+            plan=plan,
+            react_executor=react_executor,
+        )
+
+        result = plan_executor.execute(
+            state=state,
+        )
+
+        self.assertEqual(
+            result.response,
+            "Customer found",
         )

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 import json
 import time
-from typing import Any, Callable
+from typing import Any
 from jsonschema import ValidationError, validate
 from openai.types.chat import ChatCompletionMessage
 from openai.types.chat.chat_completion_message_tool_call import (
@@ -14,8 +14,6 @@ from openai.types.chat.chat_completion_message_tool_call import (
 from state.agent_state import AgentState
 from tool_registry import tool_registry
 from prompts.agent_prompt import build_agent_system_prompt
-
-ReActLLMCall = Callable[..., Any]
 
 
 @dataclass
@@ -171,8 +169,8 @@ class ToolCallPolicy(StrEnum):
 class ReActExecutor:
     def __init__(
         self,
-        llm_call: ReActLLMCall,
-        config: dict,
+        llm_call: Any,
+        config: dict[str, Any],
     ):
         self.llm_call = llm_call
         self.config = config
@@ -251,6 +249,14 @@ class ReActExecutor:
                 ),
             )
 
+        state.add_messages(
+            [
+                {
+                    "role": "assistant",
+                    "content": message.content,
+                }
+            ]
+        )
         # print(json.dumps(state.messages))
 
         return ReActExecutionResult(

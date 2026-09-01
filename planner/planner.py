@@ -1,12 +1,10 @@
 # planner/planner.py
-from typing import Any, Callable
+from typing import Any
 
 from planner.plan import Plan
 from planner.plan_step import PlanStep
 from planner.plan_validator import PlanValidator
 from prompts.planner_prompt import PLANNER_SYSTEM_PROMPT
-
-LLMCall = Callable[[list[dict[str, str]]], Any]
 
 """
 For the initial plan:
@@ -68,7 +66,7 @@ Planner benefits:
 class Planner:
     def __init__(
         self,
-        llm_call: LLMCall,
+        llm_call: Any,
     ):
         self.llm_call = llm_call
         self.validator = PlanValidator()

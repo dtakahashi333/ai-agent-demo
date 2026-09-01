@@ -115,6 +115,7 @@ class PlanExecutionStatus(Enum):
 @dataclass
 class PlanExecutionResult:
     status: PlanExecutionStatus
+    response: str = str | None
 
 
 class PlanExecutor:
@@ -207,6 +208,8 @@ class PlanExecutor:
         self.failed_steps = set()
         self.in_progress_step = None
 
+        self.response = None
+
     def get_step_status(self, step: PlanStep) -> StepStatus:
         """
         1. Is it completed? (step ∈ completed_steps)
@@ -290,10 +293,11 @@ class PlanExecutor:
             if step is None:
                 if self.completed_steps == set(self.steps_by_id):
                     return PlanExecutionResult(
-                        PlanExecutionStatus.COMPLETED,
+                        status=PlanExecutionStatus.COMPLETED,
+                        response=self.response,
                     )
                 return PlanExecutionResult(
-                    PlanExecutionStatus.NEEDS_REPLAN,
+                    status=PlanExecutionStatus.NEEDS_REPLAN,
                 )
 
             self.in_progress_step = step.id
@@ -307,5 +311,6 @@ class PlanExecutor:
 
             if result.success:
                 self.completed_steps.add(step.id)
+                self.response = result.response
             else:
                 self.failed_steps.add(step.id)

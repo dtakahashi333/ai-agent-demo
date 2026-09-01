@@ -1,6 +1,8 @@
 # llm/react_llm.py
 from typing import Any
 
+from openai.types.chat import ChatCompletion
+
 
 class ReActLLM:
     def __init__(
@@ -17,7 +19,7 @@ class ReActLLM:
         self,
         messages: list[Any],
         tool_choice=None,
-    ) -> dict:
+    ) -> ChatCompletion:
         return self.client.chat.completions.create(
             model=self.model,
             messages=messages,

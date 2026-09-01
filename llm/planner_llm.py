@@ -4,6 +4,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 from openai import OpenAI
+from openai.types.chat import ChatCompletion
 
 from planner.planning_response import PlanningResponse
 
@@ -34,8 +35,11 @@ class PlannerLLM:
         self.client = client
         self.model = model
 
-    def __call__(self, messages: list[dict[str, str]]):
-        response = client.chat.completions.parse(
+    def __call__(
+        self,
+        messages: list[dict[str, str]],
+    ) -> ChatCompletion:
+        response = self.client.chat.completions.parse(
             model=self.model,
             messages=messages,
             response_format=PlanningResponse,
