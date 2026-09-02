@@ -1,5 +1,5 @@
 # executor/plan_executor.py
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 
 from executor.react_executor import ReActExecutor
@@ -115,7 +115,9 @@ class PlanExecutionStatus(Enum):
 @dataclass
 class PlanExecutionResult:
     status: PlanExecutionStatus
-    response: str = str | None
+    response: str | None = None
+    completed_steps: set[str] = field(default_factory=set)
+    failed_steps: set[str] = field(default_factory=set)
 
 
 class PlanExecutor:
@@ -295,9 +297,12 @@ class PlanExecutor:
                     return PlanExecutionResult(
                         status=PlanExecutionStatus.COMPLETED,
                         response=self.response,
+                        completed_steps=set(self.completed_steps),
                     )
                 return PlanExecutionResult(
                     status=PlanExecutionStatus.NEEDS_REPLAN,
+                    completed_steps=set(self.completed_steps),
+                    failed_steps=set(self.failed_steps),
                 )
 
             self.in_progress_step = step.id

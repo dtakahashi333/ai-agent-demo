@@ -4,11 +4,11 @@ import json
 
 from openai import OpenAI
 from dotenv import load_dotenv
-from types import SimpleNamespace
 
 from config.agent_config import AgentConfig
 from executor.plan_executor import (
     PlanExecutionResult,
+    PlanExecutionStatus,
     PlanExecutor,
 )
 from executor.react_executor import ReActExecutor
@@ -71,6 +71,7 @@ def run_agent(
     query: str,
     planner_llm: PlannerLLM = None,
     react_llm: ReActLLM = None,
+    react_executor: ReActExecutor = None,
 ) -> str:
     """
     run_agent
@@ -121,28 +122,47 @@ def run_agent(
     if react_llm is None:
         react_llm = ReActLLM(
             client=client,
+            model=model,
             tools=tools,
+        )
+
+    if react_executor is None:
+        react_executor = ReActExecutor(
+            llm_call=react_llm,
+            config=config,
         )
 
     planner = Planner(
         llm_call=planner_llm,
     )
 
-    plan = planner.plan(
-        objective=query,
-        capabilities=agent_config.capabilities,
-    )
+    replan_count = 0
 
-    react_executor = ReActExecutor(
-        llm_call=react_llm,
-        config=config,
-    )
+    previous_plan = None
+    execution_result = None
 
-    plan_executor = PlanExecutor(
-        plan=plan,
-        react_executor=react_executor,
-    )
+    while True:
+        plan = planner.plan(
+            objective=query,
+            capabilities=agent_config.capabilities,
+            previous_plan=previous_plan,
+            execution_result=execution_result,
+        )
 
-    result = plan_executor.execute(state)
+        plan_executor = PlanExecutor(
+            plan=plan,
+            react_executor=react_executor,
+        )
 
-    return result.response
+        result = plan_executor.execute(state)
+
+        if result.status == PlanExecutionStatus.COMPLETED:
+            return result.response
+
+        replan_count += 1
+
+        if replan_count > 1:
+            return result.response
+
+        previous_plan = plan
+        execution_result = result

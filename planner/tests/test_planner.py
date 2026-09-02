@@ -1,6 +1,10 @@
 # planner/tests/test_planner.py
 from unittest import TestCase
+from unittest.mock import Mock
 
+from executor.plan_executor import PlanExecutionResult, PlanExecutionStatus
+from planner.plan import Plan
+from planner.plan_step import PlanStep
 from planner.plan_validator import PlanValidator
 from planner.planner import Planner
 from planner.planning_response import PlannedStep
@@ -190,3 +194,59 @@ class TestPlanner(TestCase):
         self.assertIn("Create a customer summary", user_message)
         self.assertIn("Find customer", user_message)
         self.assertIn("Get customer orders", user_message)
+
+    def test_sends_previous_execution_context_to_llm(self):
+        mock_planner_llm = Mock()
+        mock_planner_llm.return_value = make_planner_client_response(
+            steps=[
+                PlannedStep(
+                    id="A",
+                    description="Find Alice",
+                    dependencies=[],
+                ),
+            ]
+        )
+        planner = Planner(llm_call=mock_planner_llm)
+
+        previous_plan = Plan(
+            steps=[
+                PlanStep(
+                    id="A",
+                    description="Find Alice",
+                    dependencies=[],
+                ),
+                PlanStep(
+                    id="B",
+                    description="Get Alice's orders",
+                    dependencies=["A"],
+                ),
+            ]
+        )
+
+        execution_result = PlanExecutionResult(
+            status=PlanExecutionStatus.NEEDS_REPLAN,
+            completed_steps={"A"},
+            failed_steps={"B"},
+        )
+
+        planner.plan(
+            objective="Find Alice and get her orders",
+            capabilities=[
+                "Find customer",
+                "Get customer orders",
+            ],
+            previous_plan=previous_plan,
+            execution_result=execution_result,
+        )
+
+        messages = mock_planner_llm.call_args.args[0]
+
+        self.assertEqual(
+            messages[-2]["content"],
+            "Previous Plan\n" "A: Find Alice\n" "B: Get Alice's orders",
+        )
+
+        self.assertEqual(
+            messages[-1]["content"],
+            "Execution Result\n" "A -> completed\n" "B -> failed",
+        )

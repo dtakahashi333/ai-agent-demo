@@ -1,29 +1,9 @@
 # llm/planner_llm.py
-import os
 from typing import Any
 
-from dotenv import load_dotenv
-from openai import OpenAI
 from openai.types.chat import ChatCompletion
 
 from planner.planning_response import PlanningResponse
-
-load_dotenv()
-
-client = OpenAI(
-    api_key=os.getenv("LLM_API_KEY"),
-    base_url=os.getenv("LLM_BASE_URL"),
-)
-
-
-# def planner_llm(
-#     messages: list[dict[str, str]],
-# ):
-#     return client.responses.parse(
-#         model=os.getenv("LLM_MODEL"),
-#         input=messages,
-#         text_format=PlanningResponse,
-#     )
 
 
 class PlannerLLM:

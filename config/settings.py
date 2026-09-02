@@ -7,4 +7,5 @@ config = {
     "retry_delay": 1.0,
     "max_retrieved_results": 100,
     "max_estimated_context_tokens": 12000,
+    "max_replans": 3,
 }

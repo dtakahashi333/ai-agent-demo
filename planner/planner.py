@@ -1,6 +1,7 @@
 # planner/planner.py
 from typing import Any
 
+from executor.plan_executor import PlanExecutionResult
 from planner.plan import Plan
 from planner.plan_step import PlanStep
 from planner.plan_validator import PlanValidator
@@ -76,6 +77,8 @@ class Planner:
         self,
         objective: str,
         capabilities: list[str],
+        previous_plan: Plan | None = None,
+        execution_result: PlanExecutionResult | None = None,
     ) -> Plan:
         """
                     Planner
@@ -99,6 +102,41 @@ class Planner:
             objective,
             capabilities,
         )
+
+        if previous_plan and execution_result:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Previous Plan\n"
+                    + "\n".join(
+                        [
+                            f"{step.id}: {step.description}"
+                            for step in previous_plan.steps
+                        ]
+                    ),
+                }
+            )
+
+            execution_lines = [
+                f"{step.id} -> "
+                + (
+                    "completed"
+                    if step.id in execution_result.completed_steps
+                    else (
+                        "failed"
+                        if step.id in execution_result.failed_steps
+                        else "blocked"
+                    )
+                )
+                for step in previous_plan.steps
+            ]
+
+            messages.append(
+                {
+                    "role": "user",
+                    "content": "Execution Result\n" + "\n".join(execution_lines),
+                }
+            )
 
         response = self.llm_call(messages)
 
