@@ -1,12 +1,44 @@
-# tests/test_record_tool_failure.py
-
+# executor/tests/test_record_tool_failure.py
+from types import SimpleNamespace
 from unittest import TestCase
+from unittest.mock import Mock
 
-from agent import record_tool_failure
+from executor.react_executor import ReActExecutor
+from llm.react_llm import ReActLLM
 from state.agent_state import AgentState
+from tool_registry import build_llm_tools, tool_registry
+from config.settings import config
+
+tools = build_llm_tools(
+    tool_registry=tool_registry,
+    config=config,
+)
+
+mock_react_client = Mock()
+mock_react_client.chat.completions.create.return_value = SimpleNamespace(
+    choices=[
+        SimpleNamespace(
+            message=SimpleNamespace(
+                content="Customer found",
+                tool_calls=[],
+            )
+        )
+    ]
+)
 
 
 class TestRecordToolFailure(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.executor = ReActExecutor(
+            llm_call=ReActLLM(
+                client=mock_react_client,
+                model="test-model",
+                tools=tools,
+            ),
+            config=config,
+        )
+
     def test_record_tool_failure_records_invalid_arguments(self):
         state = AgentState()
 
@@ -21,7 +53,7 @@ class TestRecordToolFailure(TestCase):
             },
         }
 
-        record_tool_failure(
+        self.executor.record_tool_failure(
             state,
             signature,
             result,
@@ -46,7 +78,7 @@ class TestRecordToolFailure(TestCase):
             },
         }
 
-        record_tool_failure(
+        self.executor.record_tool_failure(
             state,
             signature,
             result,
@@ -71,7 +103,7 @@ class TestRecordToolFailure(TestCase):
             "error": None,
         }
 
-        record_tool_failure(
+        self.executor.record_tool_failure(
             state,
             signature,
             result,

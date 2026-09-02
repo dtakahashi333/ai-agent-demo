@@ -1,14 +1,45 @@
-# tests/test_update_agent_state.py
-
+# executor/tests/test_update_agent_state.py
+from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock
 
-from agent import update_agent_state
+from executor.react_executor import ReActExecutor
+from llm.react_llm import ReActLLM
 from state.agent_state import AgentState
 from state.customer import Customer
+from tool_registry import build_llm_tools, tool_registry
+from config.settings import config
+
+tools = build_llm_tools(
+    tool_registry=tool_registry,
+    config=config,
+)
+
+mock_react_client = Mock()
+mock_react_client.chat.completions.create.return_value = SimpleNamespace(
+    choices=[
+        SimpleNamespace(
+            message=SimpleNamespace(
+                content="Customer found",
+                tool_calls=[],
+            )
+        )
+    ]
+)
 
 
 class TestUpdateAgentState(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.executor = ReActExecutor(
+            llm_call=ReActLLM(
+                client=mock_react_client,
+                model="test-model",
+                tools=tools,
+            ),
+            config=config,
+        )
+
     def test_get_customer_failure_does_not_select_customer(self):
         state = AgentState()
 
@@ -25,7 +56,11 @@ class TestUpdateAgentState(TestCase):
         }
 
         # Invoke update_agent_state(...)
-        update_agent_state(state, tool_call, result)
+        self.executor.update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
 
         self.assertIsNone(state.retrieved_customer)
 
@@ -47,7 +82,11 @@ class TestUpdateAgentState(TestCase):
         }
 
         # Invoke update_agent_state(...)
-        update_agent_state(state, tool_call, result)
+        self.executor.update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
 
         self.assertIsNotNone(state.retrieved_customer)
         self.assertEqual(state.retrieved_customer.id, 42)
@@ -88,7 +127,7 @@ class TestUpdateAgentState(TestCase):
             "error": None,
         }
 
-        update_agent_state(
+        self.executor.update_agent_state(
             state,
             tool_call,
             result,
@@ -131,7 +170,11 @@ class TestUpdateAgentState(TestCase):
             },
         }
 
-        update_agent_state(state, tool_call, result)
+        self.executor.update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
 
         self.assertIsNotNone(state.retrieved_customer)
         self.assertEqual(state.retrieved_customer.id, 42)
@@ -179,7 +222,7 @@ class TestUpdateAgentState(TestCase):
             "error": None,
         }
 
-        update_agent_state(
+        self.executor.update_agent_state(
             state,
             tool_call,
             result,
@@ -220,7 +263,7 @@ class TestUpdateAgentState(TestCase):
             "error": None,
         }
 
-        update_agent_state(
+        self.executor.update_agent_state(
             state,
             tool_call,
             first_result,
@@ -228,7 +271,7 @@ class TestUpdateAgentState(TestCase):
 
         self.assertEqual(state.retrieved_count, 3)
 
-        update_agent_state(
+        self.executor.update_agent_state(
             state,
             tool_call,
             second_result,
@@ -251,7 +294,7 @@ class TestUpdateAgentState(TestCase):
             },
         }
 
-        update_agent_state(
+        self.executor.update_agent_state(
             state,
             tool_call,
             result,
@@ -274,7 +317,7 @@ class TestUpdateAgentState(TestCase):
             },
         }
 
-        update_agent_state(
+        self.executor.update_agent_state(
             state,
             tool_call,
             result,
@@ -299,7 +342,11 @@ class TestUpdateAgentState(TestCase):
             "error": None,
         }
 
-        update_agent_state(state, tool_call, result)
+        self.executor.update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
 
         self.assertEqual(state.retrieved_count, 5)
 
@@ -326,7 +373,11 @@ class TestUpdateAgentState(TestCase):
             "error": None,
         }
 
-        update_agent_state(state, tool_call, result)
+        self.executor.update_agent_state(
+            state,
+            tool_call,
+            result,
+        )
 
         self.assertEqual(state.retrieved_count, 1)
         self.assertIsNone(state.retrieved_customer)
@@ -348,7 +399,7 @@ class TestUpdateAgentState(TestCase):
             "error": None,
         }
 
-        update_agent_state(
+        self.executor.update_agent_state(
             state,
             tool_call,
             result,

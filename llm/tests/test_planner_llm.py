@@ -1,36 +1,18 @@
 # llm/tests/test_planner_llm.py
 from unittest import TestCase
+from unittest.mock import Mock
 
 from llm.planner_llm import PlannerLLM
 from planner.planning_response import PlanningResponse
 
-
-class FakeResponses:
-    def __init__(self):
-        self.model = None
-        self.input = None
-        self.text_format = None
-
-    def parse(self, *, model, input, text_format):
-        self.model = model
-        self.input = input
-        self.text_format = text_format
-
-        return "fake response"
-
-
-class FakeOpenAIClient:
-    def __init__(self):
-        self.responses = FakeResponses()
+mock_planner_client = Mock()
+mock_planner_client.chat.completions.parse.return_value = "fake response"
 
 
 class TestPlannerLLM(TestCase):
-
     def test_calls_openai_with_structured_output(self):
-        client = FakeOpenAIClient()
-
         planner_llm = PlannerLLM(
-            client=client,
+            client=mock_planner_client,
             model="test-model",
         )
 
@@ -43,19 +25,21 @@ class TestPlannerLLM(TestCase):
 
         response = planner_llm(messages)
 
+        call = mock_planner_client.chat.completions.parse.call_args
+
         self.assertEqual(
+            call.kwargs["model"],
             "test-model",
-            client.responses.model,
         )
 
         self.assertEqual(
+            call.kwargs["messages"],
             messages,
-            client.responses.input,
         )
 
         self.assertIs(
+            call.kwargs["response_format"],
             PlanningResponse,
-            client.responses.text_format,
         )
 
         self.assertEqual(

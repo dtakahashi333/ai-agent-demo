@@ -7,9 +7,6 @@ from state.customer import Customer
 
 
 class TestAgentState(TestCase):
-    def setUp(self):
-        return super().setUp()
-
     def test_agent_state_rejects_negative_iteration(self):
         with self.assertRaises(ValueError):
             AgentState(iteration=-1)
@@ -199,8 +196,7 @@ class TestAgentState(TestCase):
         state = AgentState()
 
         state.initialize_messages(
-            "You are a helpful assistant.",
-            "Find Alice.",
+            system_prompt="You are a helpful assistant.",
         )
 
         self.assertEqual(
@@ -209,10 +205,6 @@ class TestAgentState(TestCase):
                 {
                     "role": "system",
                     "content": "You are a helpful assistant.",
-                },
-                {
-                    "role": "user",
-                    "content": "Find Alice.",
                 },
             ],
         )
@@ -228,8 +220,7 @@ class TestAgentState(TestCase):
         )
 
         state.initialize_messages(
-            "System",
-            "New request",
+            system_prompt="System",
         )
 
         self.assertEqual(
@@ -238,10 +229,6 @@ class TestAgentState(TestCase):
                 {
                     "role": "system",
                     "content": "System",
-                },
-                {
-                    "role": "user",
-                    "content": "New request",
                 },
             ],
         )

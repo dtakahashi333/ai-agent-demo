@@ -295,7 +295,7 @@ class ReActExecutor:
         """
 
         # Agent-level budget allocation
-        allowed_call_ids = self._allocate_retrieval_budget(
+        allowed_call_ids = self.allocate_retrieval_budget(
             message.tool_calls,
             state.retrieved_count,
         )
@@ -352,9 +352,9 @@ class ReActExecutor:
             > Did this successful tool result change what the agent knows?
             """
 
-            self._record_tool_failure(state, tool_call_signature, result)
+            self.record_tool_failure(state, tool_call_signature, result)
 
-            self._update_agent_state(state, tool_call, result)
+            self.update_agent_state(state, tool_call, result)
 
             results.append(
                 self._build_tool_result_message(
@@ -365,7 +365,7 @@ class ReActExecutor:
 
         return results
 
-    def _allocate_retrieval_budget(
+    def allocate_retrieval_budget(
         self,
         tool_calls: list[ChatCompletionMessageToolCall],
         retrieved_count: int,
@@ -502,7 +502,7 @@ class ReActExecutor:
                 },
             }
 
-        validation_result = self._validate_arguments(tool_name, arguments)
+        validation_result = self.validate_arguments(tool_name, arguments)
 
         if not validation_result["success"]:
             return validation_result
@@ -541,7 +541,7 @@ class ReActExecutor:
 
             print(f"[END {tool_call.function.name}] " f"{elapsed:.4f}s")
 
-    def _validate_arguments(
+    def validate_arguments(
         self,
         tool_name: str,
         arguments: dict,
@@ -636,7 +636,7 @@ class ReActExecutor:
                 },
             }
 
-    def _record_tool_failure(
+    def record_tool_failure(
         self,
         state: AgentState,
         tool_call_signature: tuple[str, str],
@@ -648,7 +648,7 @@ class ReActExecutor:
         ):
             state.record_failed_tool_call(tool_call_signature)
 
-    def _update_agent_state(
+    def update_agent_state(
         self,
         state: AgentState,
         tool_call: ChatCompletionMessageToolCall,
