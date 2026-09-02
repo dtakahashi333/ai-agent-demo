@@ -1,15 +1,15 @@
 # tests/test_agent.py
-from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock
 from agent import run_agent
-from executor.plan_executor import PlanExecutionStatus, PlanExecutor
 from executor.react_executor import ReActExecutionResult, ReActExecutor
+from tests.utils.client_responses import (
+    make_planner_client_response,
+    make_react_client_response,
+)
 from llm.planner_llm import PlannerLLM
 from llm.react_llm import ReActLLM
-from planner.plan import Plan
 from planner.planning_response import PlannedStep
-from state.agent_state import AgentState
 from tool_registry import build_llm_tools, tool_registry
 from config.settings import config
 
@@ -22,34 +22,24 @@ tools = build_llm_tools(
 class TestAgent(TestCase):
     def test_composition_of_existing_components(self):
         mock_planner_client = Mock()
-        mock_planner_client.chat.completions.parse.return_value = SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        parsed=SimpleNamespace(
-                            steps=[
-                                PlannedStep(
-                                    id="step1",
-                                    description="Find customer",
-                                    dependencies=[],
-                                ),
-                            ]
-                        )
-                    )
-                )
-            ]
+        mock_planner_client.chat.completions.parse.return_value = (
+            make_planner_client_response(
+                steps=[
+                    PlannedStep(
+                        id="step1",
+                        description="Find customer",
+                        dependencies=[],
+                    ),
+                ]
+            )
         )
 
         mock_react_client = Mock()
-        mock_react_client.chat.completions.create.return_value = SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="Customer found",
-                        tool_calls=[],
-                    )
-                )
-            ]
+        mock_react_client.chat.completions.create.return_value = (
+            make_react_client_response(
+                content="Customer found",
+                tool_calls=[],
+            )
         )
 
         result = run_agent(
@@ -88,28 +78,18 @@ class TestAgent(TestCase):
         ]
 
         mock_planner_client = Mock()
-        mock_planner_client.chat.completions.parse.return_value = SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        parsed=SimpleNamespace(
-                            steps=steps,
-                        )
-                    )
-                )
-            ]
+        mock_planner_client.chat.completions.parse.return_value = (
+            make_planner_client_response(
+                steps=steps,
+            )
         )
 
         mock_react_client = Mock()
-        mock_react_client.chat.completions.create.return_value = SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        content="Done",
-                        tool_calls=[],
-                    )
-                )
-            ]
+        mock_react_client.chat.completions.create.return_value = (
+            make_react_client_response(
+                content="Done",
+                tool_calls=[],
+            )
         )
 
         result = run_agent(
@@ -137,4 +117,45 @@ class TestAgent(TestCase):
                 "Find customer",
                 "Get customer orders",
             ],
+        )
+
+    def test_replans_after_plan_execution_failure(self):
+        plan1 = [
+            PlannedStep(
+                id="step1",
+                description="Find customer",
+                dependencies=[],
+            ),
+        ]
+        plan2 = [
+            PlannedStep(
+                id="step1",
+                description="Try finding customer another way",
+                dependencies=[],
+            ),
+        ]
+        mock_planner_client = Mock()
+        mock_planner_client.chat.completions.parse.side_effect = [
+            make_planner_client_response(steps=plan1),
+            make_planner_client_response(steps=plan2),
+        ]
+
+        mock_react_executor = Mock(spec=ReActExecutor)
+        mock_react_executor.execute.return_value = ReActExecutionResult(
+            success=False,
+            response="Failed",
+        )
+
+        run_agent(
+            query="Find customer",
+            planner_llm=PlannerLLM(
+                client=mock_planner_client,
+                model="test-model",
+            ),
+            react_executor=mock_react_executor,
+        )
+
+        self.assertEqual(
+            mock_planner_client.chat.completions.parse.call_count,
+            2,
         )

@@ -1,5 +1,4 @@
 # executor/tests/test_update_agent_state.py
-from types import SimpleNamespace
 from unittest import TestCase
 from unittest.mock import Mock
 
@@ -7,6 +6,7 @@ from executor.react_executor import ReActExecutor
 from llm.react_llm import ReActLLM
 from state.agent_state import AgentState
 from state.customer import Customer
+from tests.utils.client_responses import make_react_client_response
 from tool_registry import build_llm_tools, tool_registry
 from config.settings import config
 
@@ -16,15 +16,9 @@ tools = build_llm_tools(
 )
 
 mock_react_client = Mock()
-mock_react_client.chat.completions.create.return_value = SimpleNamespace(
-    choices=[
-        SimpleNamespace(
-            message=SimpleNamespace(
-                content="Customer found",
-                tool_calls=[],
-            )
-        )
-    ]
+mock_react_client.chat.completions.create.return_value = make_react_client_response(
+    content="Customer found",
+    tool_calls=[],
 )
 
 

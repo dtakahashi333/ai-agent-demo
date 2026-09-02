@@ -1,10 +1,10 @@
 # planner/tests/test_planner.py
-from types import SimpleNamespace
 from unittest import TestCase
 
 from planner.plan_validator import PlanValidator
 from planner.planner import Planner
-from planner.planning_response import PlannedStep, PlanningResponse
+from planner.planning_response import PlannedStep
+from tests.utils.client_responses import make_planner_client_response
 
 
 class FakePlannerLLM:
@@ -16,26 +16,18 @@ class FakePlannerLLM:
         response.choices[0].message.parsed
         """
         self.messages = messages
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        parsed=SimpleNamespace(
-                            steps=[
-                                PlannedStep(
-                                    id="A",
-                                    description="Find customer",
-                                    dependencies=[],
-                                ),
-                                PlannedStep(
-                                    id="B",
-                                    description="Get orders",
-                                    dependencies=["A"],
-                                ),
-                            ]
-                        )
-                    )
-                )
+        return make_planner_client_response(
+            steps=[
+                PlannedStep(
+                    id="A",
+                    description="Find customer",
+                    dependencies=[],
+                ),
+                PlannedStep(
+                    id="B",
+                    description="Get orders",
+                    dependencies=["A"],
+                ),
             ]
         )
 
@@ -46,26 +38,18 @@ class InvalidPlanPlannerLLM:
 
     def __call__(self, messages):
         self.messages = messages
-        return SimpleNamespace(
-            choices=[
-                SimpleNamespace(
-                    message=SimpleNamespace(
-                        parsed=PlanningResponse(
-                            steps=[
-                                PlannedStep(
-                                    id="A",
-                                    description="Find customer",
-                                    dependencies=[],
-                                ),
-                                PlannedStep(
-                                    id="B",
-                                    description="Get orders",
-                                    dependencies=["X"],
-                                ),
-                            ]
-                        )
-                    )
-                )
+        return make_planner_client_response(
+            steps=[
+                PlannedStep(
+                    id="A",
+                    description="Find customer",
+                    dependencies=[],
+                ),
+                PlannedStep(
+                    id="B",
+                    description="Get orders",
+                    dependencies=["X"],
+                ),
             ]
         )
 
