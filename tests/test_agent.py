@@ -120,14 +120,14 @@ class TestAgent(TestCase):
         )
 
     def test_replans_after_plan_execution_failure(self):
-        plan1 = [
+        plan1_steps = [
             PlannedStep(
                 id="step1",
                 description="Find customer",
                 dependencies=[],
             ),
         ]
-        plan2 = [
+        plan2_steps = [
             PlannedStep(
                 id="step1",
                 description="Try finding customer another way",
@@ -136,8 +136,8 @@ class TestAgent(TestCase):
         ]
         mock_planner_client = Mock()
         mock_planner_client.chat.completions.parse.side_effect = [
-            make_planner_client_response(steps=plan1),
-            make_planner_client_response(steps=plan2),
+            make_planner_client_response(steps=plan1_steps),
+            make_planner_client_response(steps=plan2_steps),
         ]
 
         mock_react_executor = Mock(spec=ReActExecutor)
@@ -158,4 +158,98 @@ class TestAgent(TestCase):
         self.assertEqual(
             mock_planner_client.chat.completions.parse.call_count,
             2,
+        )
+
+    def test_replans_after_step_failure(self):
+        plan1_steps = [
+            PlannedStep(
+                id="step1",
+                description="Find customer",
+                dependencies=[],
+            ),
+        ]
+        plan2_steps = [
+            PlannedStep(
+                id="step1",
+                description="Try finding customer another way",
+                dependencies=[],
+            ),
+        ]
+        mock_planner_llm = Mock()
+        mock_planner_llm.side_effect = [
+            make_planner_client_response(steps=plan1_steps),
+            make_planner_client_response(steps=plan2_steps),
+        ]
+
+        mock_react_executor = Mock(spec=ReActExecutor)
+        mock_react_executor.execute.side_effect = [
+            ReActExecutionResult(success=False, response=""),
+            ReActExecutionResult(success=True, response="Done"),
+        ]
+
+        result = run_agent(
+            query="Find customer",
+            planner_llm=mock_planner_llm,
+            react_executor=mock_react_executor,
+        )
+
+        self.assertEqual(result, "Done")
+
+        self.assertEqual(mock_planner_llm.call_count, 2)
+
+        second_messages = mock_planner_llm.call_args_list[1].kwargs["messages"]
+
+        self.assertEqual(
+            second_messages[-1]["content"],
+            "Execution Result\nstep1 -> failed",
+        )
+        self.assertEqual(
+            second_messages[-2]["content"],
+            "Previous Plan\nstep1: Find customer",
+        )
+
+    def test_executes_new_plan_after_step_failure(self):
+        plan1_steps = [
+            PlannedStep(
+                id="step1",
+                description="Find customer",
+                dependencies=[],
+            ),
+        ]
+        plan2_steps = [
+            PlannedStep(
+                id="step1",
+                description="Try finding customer another way",
+                dependencies=[],
+            ),
+        ]
+        mock_planner_llm = Mock()
+        mock_planner_llm.side_effect = [
+            make_planner_client_response(steps=plan1_steps),
+            make_planner_client_response(steps=plan2_steps),
+        ]
+
+        mock_react_executor = Mock(spec=ReActExecutor)
+        mock_react_executor.execute.side_effect = [
+            ReActExecutionResult(success=False, response=""),
+            ReActExecutionResult(success=True, response="Done"),
+        ]
+
+        result = run_agent(
+            query="Find customer",
+            planner_llm=mock_planner_llm,
+            react_executor=mock_react_executor,
+        )
+
+        self.assertEqual(result, "Done")
+
+        self.assertEqual(
+            mock_react_executor.execute.call_count,
+            2,
+        )
+
+        second_execution = mock_react_executor.execute.call_args_list[1]
+
+        self.assertEqual(
+            second_execution.kwargs["objective"], "Try finding customer another way"
         )

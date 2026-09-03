@@ -138,7 +138,7 @@ class Planner:
                 }
             )
 
-        response = self.llm_call(messages)
+        response = self.llm_call(messages=messages)
 
         planning_response = response.choices[0].message.parsed
 
@@ -151,10 +151,10 @@ class Planner:
             for step in planning_response.steps
         ]
 
-        plan = Plan(steps)
+        plan = Plan(steps=steps)
 
         # Validate before returning
-        errors = self.validator.validate(plan)
+        errors = self.validator.validate(plan=plan)
 
         if errors:
             # raise ValueError(f"Invalid plan: {errors}")

@@ -154,7 +154,7 @@ def run_agent(
             react_executor=react_executor,
         )
 
-        result = plan_executor.execute(state)
+        result = plan_executor.execute(state=state)
 
         if result.status == PlanExecutionStatus.COMPLETED:
             return result.response
