@@ -92,6 +92,14 @@ class Planner:
                      LLM
                       ↓
                      Plan
+
+        | State                  | Planner probably needs it? |
+        |------------------------|----------------------------|
+        | retrieved_customer     | Maybe yes                  |
+        | retrieved_count        | Maybe                      |
+        | seen_failed_tool_calls | Probably not directly      |
+        | iteration              | No                         |
+        | messages               | No                         |
         """
 
         # If the Planner has no available capabilities, it should not call the LLM.

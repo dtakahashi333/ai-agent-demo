@@ -64,6 +64,16 @@ construct PlanExecutor with that plan and executor
 create the initial AgentState
 execute the plan
 eventually translate the execution result into the application's final response
+
+The architectural rule:
+PlanExecutor:
+    "Can I continue executing THIS plan?"
+
+Planner:
+    "Given what happened, what should I try next?"
+
+run_agent:
+    "Should I ask the Planner again?"
 """
 
 
@@ -136,6 +146,7 @@ def run_agent(
         llm_call=planner_llm,
     )
 
+    # Count replanning attempts, not initial planning.
     replan_count = 0
 
     previous_plan = None

@@ -2,6 +2,8 @@
 from types import SimpleNamespace
 from typing import Any
 
+from openai.types.chat import ChatCompletionMessage
+
 from planner.planning_response import PlannedStep, PlanningResponse
 
 
@@ -28,7 +30,8 @@ def make_react_client_response(
     return SimpleNamespace(
         choices=[
             SimpleNamespace(
-                message=SimpleNamespace(
+                message=ChatCompletionMessage(
+                    role="assistant",
                     content=content,
                     tool_calls=tool_calls,
                 )

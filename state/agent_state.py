@@ -118,5 +118,8 @@ class AgentState:
             {"role": "system", "content": system_prompt},
         ]
 
+    def reset_iteration(self) -> None:
+        self.iteration = 0
+
     def has_selected_customer(self) -> bool:
         return self.retrieved_customer is not None

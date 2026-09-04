@@ -174,7 +174,7 @@ class ReActExecutor:
     ):
         self.llm_call = llm_call
         self.config = config
-        self.system_prompt = build_agent_system_prompt(config)
+        self.system_prompt = build_agent_system_prompt(config=config)
 
     def execute(
         self,
@@ -198,9 +198,12 @@ class ReActExecutor:
         * internal policy bookkeeping
         """
 
-        state.initialize_messages(self.system_prompt)
+        state.initialize_messages(system_prompt=self.system_prompt)
+
+        state.reset_iteration()
+
         state.add_messages(
-            [
+            messages=[
                 {
                     "role": "user",
                     "content": objective,
@@ -209,7 +212,7 @@ class ReActExecutor:
         )
 
         # Ask the LLM what to do next
-        message = self._call_agent_llm(state.messages, self.llm_call)
+        message = self._call_agent_llm(messages=state.messages, llm_call=self.llm_call)
 
         print("\n".join(str(tool_call) for tool_call in message.tool_calls))
 
@@ -218,14 +221,14 @@ class ReActExecutor:
             state.increment_iteration()
 
             # Record what the assistant requested
-            state.add_messages([message.model_dump()])
+            state.add_messages(messages=[message.model_dump()])
 
-            results = self._process_tool_call_batch(message, state)
+            results = self._process_tool_call_batch(message=message, state=state)
 
-            state.add_messages(results)
+            state.add_messages(messages=results)
 
             if (
-                self._estimate_message_tokens(state.messages)
+                self._estimate_message_tokens(messages=state.messages)
                 > self.config["max_estimated_context_tokens"]
             ):
                 return ReActExecutionResult(
@@ -237,7 +240,10 @@ class ReActExecutor:
                 )
 
             # Ask the LLM what to do next
-            message = self._call_agent_llm(state.messages, self.llm_call)
+            message = self._call_agent_llm(
+                messages=state.messages,
+                llm_call=self.llm_call,
+            )
 
             # print(response.model_dump_json())
 
@@ -250,7 +256,7 @@ class ReActExecutor:
             )
 
         state.add_messages(
-            [
+            messages=[
                 {
                     "role": "assistant",
                     "content": message.content,
@@ -267,7 +273,7 @@ class ReActExecutor:
     def _call_agent_llm(
         self,
         messages: list[dict],
-        llm_call,
+        llm_call: Any,
     ) -> ChatCompletionMessage:
         response = llm_call(messages)
         return response.choices[0].message
@@ -296,8 +302,8 @@ class ReActExecutor:
 
         # Agent-level budget allocation
         allowed_call_ids = self.allocate_retrieval_budget(
-            message.tool_calls,
-            state.retrieved_count,
+            tool_calls=message.tool_calls,
+            retrieved_count=state.retrieved_count,
         )
 
         # Validate each requested tool call
@@ -311,37 +317,37 @@ class ReActExecutor:
             if tool_call.id not in allowed_call_ids:
                 results.append(
                     self._build_tool_result_message(
-                        tool_call,
-                        retrieval_limit_exceeded_error,
+                        tool_call=tool_call,
+                        result=retrieval_limit_exceeded_error,
                     )
                 )
                 continue
 
             policy, signature = self._validate_tool_call(
-                tool_call,
-                state.seen_failed_tool_calls,
-                seen_tool_calls_in_iteration,
+                tool_call=tool_call,
+                seen_failed_tool_calls=state.seen_failed_tool_calls,
+                seen_tool_calls_in_iteration=seen_tool_calls_in_iteration,
             )
 
             if policy == "duplicate":
                 results.append(
                     self._build_tool_result_message(
-                        tool_call,
-                        duplicate_tool_call_error,
+                        tool_call=tool_call,
+                        result=duplicate_tool_call_error,
                     )
                 )
             elif policy == "repeated":
                 results.append(
                     self._build_tool_result_message(
-                        tool_call,
-                        repeated_tool_call_error,
+                        tool_call=tool_call,
+                        result=repeated_tool_call_error,
                     )
                 )
             elif policy == "allowed":
                 approved_calls.append((tool_call, signature))
 
         # Execute approved calls in parallel
-        executed_calls = self._execute_approved_calls(approved_calls)
+        executed_calls = self._execute_approved_calls(approved_calls=approved_calls)
 
         for tool_call, tool_call_signature, result in executed_calls:
             """
@@ -352,14 +358,18 @@ class ReActExecutor:
             > Did this successful tool result change what the agent knows?
             """
 
-            self.record_tool_failure(state, tool_call_signature, result)
+            self.record_tool_failure(
+                state=state,
+                tool_call_signature=tool_call_signature,
+                result=result,
+            )
 
-            self.update_agent_state(state, tool_call, result)
+            self.update_agent_state(state=state, tool_call=tool_call, result=result)
 
             results.append(
                 self._build_tool_result_message(
-                    tool_call,
-                    result,
+                    tool_call=tool_call,
+                    result=result,
                 )
             )
 
@@ -406,9 +416,9 @@ class ReActExecutor:
         signature = self._make_tool_call_signature(tool_call)
 
         policy = self._check_tool_call_policy(
-            signature,
-            seen_tool_calls_in_iteration,
-            seen_failed_tool_calls,
+            signature=signature,
+            seen_tool_calls_in_iteration=seen_tool_calls_in_iteration,
+            seen_failed_tool_calls=seen_failed_tool_calls,
         )
 
         if policy == "allowed":
@@ -459,7 +469,7 @@ class ReActExecutor:
         with ThreadPoolExecutor(max_workers=len(approved_calls)) as executor:
 
             futures = [
-                executor.submit(self._execute_tool_call, tool_call)
+                executor.submit(self._execute_tool_call, tool_call=tool_call)
                 for tool_call, _ in approved_calls
             ]
 
@@ -502,7 +512,10 @@ class ReActExecutor:
                 },
             }
 
-        validation_result = self.validate_arguments(tool_name, arguments)
+        validation_result = self.validate_arguments(
+            tool_name=tool_name,
+            arguments=arguments,
+        )
 
         if not validation_result["success"]:
             return validation_result
@@ -646,7 +659,7 @@ class ReActExecutor:
             result["success"] is False
             and result["error"]["type"] == "invalid_arguments"
         ):
-            state.record_failed_tool_call(tool_call_signature)
+            state.record_failed_tool_call(signature=tool_call_signature)
 
     def update_agent_state(
         self,
@@ -670,9 +683,9 @@ class ReActExecutor:
             return
 
         if tool_call.function.name == "search_customers":
-            state.add_retrieved_results(len(result["data"]["customers"]))
+            state.add_retrieved_results(count=len(result["data"]["customers"]))
         elif tool_call.function.name == "get_customer":
-            state.select_customer(result["data"])
+            state.select_customer(data=result["data"])
 
     def _estimate_message_tokens(
         self,

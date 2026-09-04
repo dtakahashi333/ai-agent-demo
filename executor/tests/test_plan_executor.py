@@ -18,28 +18,28 @@ class TestGetStepStatus(TestCase):
             PlanStep(id="B", description="Get orders", dependencies=["A"]),
             PlanStep(id="C", description="Count orders", dependencies=["B"]),
         ]
-        self.plan = Plan(self.steps)
+        self.plan = Plan(steps=self.steps)
         self.mock_react_executor = Mock(spec=ReActExecutor)
 
     def test_completed_step(self):
         executor = PlanExecutor(
-            self.plan,
-            self.mock_react_executor,
+            plan=self.plan,
+            react_executor=self.mock_react_executor,
         )
         executor.completed_steps.add(self.steps[0].id)
 
-        status = executor.get_step_status(self.steps[0])
+        status = executor.get_step_status(step=self.steps[0])
 
         self.assertEqual(StepStatus.COMPLETED, status)
 
     def test_failed_step(self):
         executor = PlanExecutor(
-            self.plan,
-            self.mock_react_executor,
+            plan=self.plan,
+            react_executor=self.mock_react_executor,
         )
         executor.failed_steps.add(self.steps[0].id)
 
-        status = executor.get_step_status(self.steps[0])
+        status = executor.get_step_status(step=self.steps[0])
 
         self.assertEqual(StepStatus.FAILED, status)
 
@@ -50,90 +50,104 @@ class TestGetStepStatus(TestCase):
         )
         executor.in_progress_step = self.steps[0].id
 
-        status = executor.get_step_status(self.steps[0])
+        status = executor.get_step_status(step=self.steps[0])
 
         self.assertEqual(StepStatus.IN_PROGRESS, status)
 
     def test_blocked_step(self):
         executor = PlanExecutor(
-            self.plan,
-            self.mock_react_executor,
+            plan=self.plan,
+            react_executor=self.mock_react_executor,
         )
         executor.failed_steps.add(self.steps[0].id)
 
-        status = executor.get_step_status(self.steps[1])
+        status = executor.get_step_status(step=self.steps[1])
 
         self.assertEqual(StepStatus.BLOCKED, status)
 
     def test_transitive_blocked_step(self):
         executor = PlanExecutor(
-            self.plan,
-            self.mock_react_executor,
+            plan=self.plan,
+            react_executor=self.mock_react_executor,
         )
         executor.failed_steps.add(self.steps[0].id)
 
-        status = executor.get_step_status(self.steps[2])
+        status = executor.get_step_status(step=self.steps[2])
 
         self.assertEqual(StepStatus.BLOCKED, status)
 
     def test_ready_step(self):
         executor = PlanExecutor(
-            self.plan,
-            self.mock_react_executor,
+            plan=self.plan,
+            react_executor=self.mock_react_executor,
         )
         executor.completed_steps.add(self.steps[0].id)
 
-        status = executor.get_step_status(self.steps[1])
+        status = executor.get_step_status(step=self.steps[1])
 
         self.assertEqual(StepStatus.READY, status)
 
     def test_waiting_step(self):
         executor = PlanExecutor(
-            self.plan,
-            self.mock_react_executor,
+            plan=self.plan,
+            react_executor=self.mock_react_executor,
         )
         executor.in_progress_step = self.steps[0].id
 
-        status = executor.get_step_status(self.steps[1])
+        status = executor.get_step_status(step=self.steps[1])
 
         self.assertEqual(StepStatus.WAITING, status)
 
     def test_step_with_no_dependencies_is_ready(self):
         executor = PlanExecutor(
-            self.plan,
-            self.mock_react_executor,
+            plan=self.plan,
+            react_executor=self.mock_react_executor,
         )
 
-        status = executor.get_step_status(self.steps[0])
+        status = executor.get_step_status(step=self.steps[0])
 
         self.assertEqual(StepStatus.READY, status)
 
     def test_blocked_dependency_propagation(self):
         steps = [
-            PlanStep(id="A", description="Find customer", dependencies=[]),
             PlanStep(
-                id="B", description="Locate customer order records", dependencies=[]
+                id="A",
+                description="Find customer",
+                dependencies=[],
             ),
             PlanStep(
-                id="C", description="Retrieve customer profile", dependencies=["A"]
+                id="B",
+                description="Locate customer order records",
+                dependencies=[],
             ),
             PlanStep(
-                id="D", description="Retrieve customer orders", dependencies=["B"]
+                id="C",
+                description="Retrieve customer profile",
+                dependencies=["A"],
             ),
             PlanStep(
-                id="E", description="Create customer summary", dependencies=["C", "D"]
+                id="D",
+                description="Retrieve customer orders",
+                dependencies=["B"],
+            ),
+            PlanStep(
+                id="E",
+                description="Create customer summary",
+                dependencies=["C", "D"],
             ),
         ]
-        plan = Plan(steps)
+
+        plan = Plan(steps=steps)
 
         executor = PlanExecutor(
-            plan,
-            self.mock_react_executor,
+            plan=plan,
+            react_executor=self.mock_react_executor,
         )
+
         executor.completed_steps.add(steps[0].id)
         executor.failed_steps.add(steps[1].id)
 
-        status = executor.get_step_status(steps[4])
+        status = executor.get_step_status(step=steps[4])
 
         self.assertEqual(StepStatus.BLOCKED, status)
 
@@ -146,13 +160,13 @@ class TestGetNextReadyStep(TestCase):
             PlanStep(id="B", description="Get orders", dependencies=["A"]),
             PlanStep(id="C", description="Get customer plan", dependencies=["A"]),
         ]
-        self.plan = Plan(self.steps)
+        self.plan = Plan(steps=self.steps)
         self.mock_react_executor = Mock(spec=ReActExecutor)
 
     def test_get_next_ready_step_returns_first_ready_step(self):
         executor = PlanExecutor(
-            self.plan,
-            self.mock_react_executor,
+            plan=self.plan,
+            react_executor=self.mock_react_executor,
         )
         executor.completed_steps.add(self.steps[0].id)
 
@@ -162,8 +176,8 @@ class TestGetNextReadyStep(TestCase):
 
     def test_get_next_ready_step_returns_none_when_no_step_is_ready(self):
         executor = PlanExecutor(
-            self.plan,
-            self.mock_react_executor,
+            plan=self.plan,
+            react_executor=self.mock_react_executor,
         )
         executor.failed_steps.add(self.steps[0].id)
 
@@ -178,19 +192,19 @@ class TestExecute(TestCase):
         self.steps = [
             PlanStep(id="A", description="Find customer", dependencies=[]),
         ]
-        self.plan = Plan(self.steps)
+        self.plan = Plan(steps=self.steps)
 
     def test_execute_runs_ready_step(self):
         mock_react_executor = Mock(spec=ReActExecutor)
 
         executor = PlanExecutor(
-            self.plan,
-            mock_react_executor,
+            plan=self.plan,
+            react_executor=mock_react_executor,
         )
 
         state = AgentState()
 
-        executor.execute(state)
+        executor.execute(state=state)
 
         self.assertEqual(
             [
@@ -229,17 +243,14 @@ class TestExecute(TestCase):
             react_executor=mock_react_executor,
         )
 
-        result = plan_executor.execute(state)
+        result = plan_executor.execute(state=state)
 
         self.assertEqual(
             result.status,
             PlanExecutionStatus.NEEDS_REPLAN,
         )
 
-        self.assertEqual(
-            result.failed_steps,
-            {"step1"},
-        )
+        self.assertEqual(result.failed_steps, {"step1"})
 
     def test_returns_final_response(self):
         state = AgentState()
@@ -265,14 +276,9 @@ class TestExecute(TestCase):
             react_executor=mock_react_executor,
         )
 
-        result = plan_executor.execute(
-            state=state,
-        )
+        result = plan_executor.execute(state=state)
 
-        self.assertEqual(
-            result.response,
-            "Customer found",
-        )
+        self.assertEqual(result.response, "Customer found")
 
     def test_returns_completed_and_failed_steps(self):
         state = AgentState()
@@ -303,21 +309,55 @@ class TestExecute(TestCase):
             react_executor=mock_react_executor,
         )
 
-        result = plan_executor.execute(
-            state=state,
-        )
+        result = plan_executor.execute(state=state)
 
         self.assertEqual(
             result.status,
             PlanExecutionStatus.NEEDS_REPLAN,
         )
 
-        self.assertEqual(
-            result.completed_steps,
-            {"A"},
+        self.assertEqual(result.completed_steps, {"A"})
+
+        self.assertEqual(result.failed_steps, {"B"})
+
+    def test_does_not_return_intermediate_response_when_replanning(self):
+        state = AgentState()
+
+        plan = Plan(
+            steps=[
+                PlanStep(
+                    id="A",
+                    description="Find customer",
+                    dependencies=[],
+                ),
+                PlanStep(
+                    id="B",
+                    description="Get customer orders",
+                    dependencies=["A"],
+                ),
+            ]
         )
 
-        self.assertEqual(
-            result.failed_steps,
-            {"B"},
+        mock_react_executor = Mock(spec=ReActExecutor)
+        mock_react_executor.execute.side_effect = [
+            ReActExecutionResult(success=True, response="Customer found"),
+            ReActExecutionResult(success=False, response=""),
+        ]
+
+        plan_executor = PlanExecutor(
+            plan=plan,
+            react_executor=mock_react_executor,
         )
+
+        result = plan_executor.execute(state=state)
+
+        self.assertEqual(
+            result.status,
+            PlanExecutionStatus.NEEDS_REPLAN,
+        )
+
+        self.assertIsNone(result.response)
+
+        self.assertEqual(result.completed_steps, {"A"})
+
+        self.assertEqual(result.failed_steps, {"B"})
