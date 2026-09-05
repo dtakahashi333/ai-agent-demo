@@ -37,7 +37,7 @@ class TestGetStepStatus(TestCase):
             plan=self.plan,
             react_executor=self.mock_react_executor,
         )
-        executor.failed_steps.add(self.steps[0].id)
+        executor.failed_steps[self.steps[0].id] = ""
 
         status = executor.get_step_status(step=self.steps[0])
 
@@ -59,7 +59,7 @@ class TestGetStepStatus(TestCase):
             plan=self.plan,
             react_executor=self.mock_react_executor,
         )
-        executor.failed_steps.add(self.steps[0].id)
+        executor.failed_steps[self.steps[0].id] = ""
 
         status = executor.get_step_status(step=self.steps[1])
 
@@ -70,7 +70,7 @@ class TestGetStepStatus(TestCase):
             plan=self.plan,
             react_executor=self.mock_react_executor,
         )
-        executor.failed_steps.add(self.steps[0].id)
+        executor.failed_steps[self.steps[0].id] = ""
 
         status = executor.get_step_status(step=self.steps[2])
 
@@ -145,7 +145,7 @@ class TestGetStepStatus(TestCase):
         )
 
         executor.completed_steps.add(steps[0].id)
-        executor.failed_steps.add(steps[1].id)
+        executor.failed_steps[steps[1].id] = ""
 
         status = executor.get_step_status(step=steps[4])
 
@@ -179,7 +179,7 @@ class TestGetNextReadyStep(TestCase):
             plan=self.plan,
             react_executor=self.mock_react_executor,
         )
-        executor.failed_steps.add(self.steps[0].id)
+        executor.failed_steps[self.steps[0].id] = ""
 
         step = executor.get_next_ready_step()
 
@@ -250,7 +250,7 @@ class TestExecute(TestCase):
             PlanExecutionStatus.NEEDS_REPLAN,
         )
 
-        self.assertEqual(result.failed_steps, {"step1"})
+        self.assertEqual(result.failed_steps, {"step1": "Failed"})
 
     def test_returns_final_response(self):
         state = AgentState()
@@ -318,7 +318,7 @@ class TestExecute(TestCase):
 
         self.assertEqual(result.completed_steps, {"A"})
 
-        self.assertEqual(result.failed_steps, {"B"})
+        self.assertEqual(result.failed_steps, {"B": ""})
 
     def test_does_not_return_intermediate_response_when_replanning(self):
         state = AgentState()
@@ -360,4 +360,42 @@ class TestExecute(TestCase):
 
         self.assertEqual(result.completed_steps, {"A"})
 
-        self.assertEqual(result.failed_steps, {"B"})
+        self.assertEqual(result.failed_steps, {"B": ""})
+
+    def test_preserves_failure_reason_for_replanning(self):
+        plan = Plan(
+            steps=[
+                PlanStep(
+                    id="step1",
+                    description="Find customer",
+                    dependencies=[],
+                ),
+            ]
+        )
+
+        mock_react_executor = Mock(spec=ReActExecutor)
+        mock_react_executor.execute.return_value = ReActExecutionResult(
+            success=False,
+            response="Customer service unavailable",
+        )
+
+        executor = PlanExecutor(
+            plan=plan,
+            react_executor=mock_react_executor,
+        )
+
+        result = executor.execute(AgentState())
+
+        self.assertEqual(
+            result.status,
+            PlanExecutionStatus.NEEDS_REPLAN,
+        )
+
+        self.assertIsNone(result.response)
+
+        self.assertEqual(
+            result.failed_steps,
+            {
+                "step1": "Customer service unavailable",
+            },
+        )

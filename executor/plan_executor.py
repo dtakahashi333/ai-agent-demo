@@ -117,7 +117,7 @@ class PlanExecutionResult:
     status: PlanExecutionStatus
     response: str | None = None
     completed_steps: set[str] = field(default_factory=set)
-    failed_steps: set[str] = field(default_factory=set)
+    failed_steps: dict[str, str] = field(default_factory=dict)
 
 
 class PlanExecutor:
@@ -193,7 +193,7 @@ class PlanExecutor:
     steps_by_id: dict[str, PlanStep]
 
     completed_steps: set[str]
-    failed_steps: set[str]
+    failed_steps: dict[str, str]
     in_progress_step: str | None
 
     def __init__(
@@ -207,7 +207,7 @@ class PlanExecutor:
         self.steps_by_id = {step.id: step for step in plan.steps}
 
         self.completed_steps = set()
-        self.failed_steps = set()
+        self.failed_steps = {}
         self.in_progress_step = None
 
         self.response = None
@@ -302,7 +302,7 @@ class PlanExecutor:
                 return PlanExecutionResult(
                     status=PlanExecutionStatus.NEEDS_REPLAN,
                     completed_steps=set(self.completed_steps),
-                    failed_steps=set(self.failed_steps),
+                    failed_steps=dict(self.failed_steps),
                 )
 
             self.in_progress_step = step.id
@@ -318,4 +318,4 @@ class PlanExecutor:
                 self.completed_steps.add(step.id)
                 self.response = result.response
             else:
-                self.failed_steps.add(step.id)
+                self.failed_steps[step.id] = result.response

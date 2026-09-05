@@ -183,7 +183,7 @@ class TestAgent(TestCase):
 
         mock_react_executor = Mock(spec=ReActExecutor)
         mock_react_executor.execute.side_effect = [
-            ReActExecutionResult(success=False, response=""),
+            ReActExecutionResult(success=False, response="Customer service unavailable"),
             ReActExecutionResult(success=True, response="Done"),
         ]
 
@@ -201,7 +201,7 @@ class TestAgent(TestCase):
 
         self.assertEqual(
             second_messages[-1]["content"],
-            "Execution Result\nstep1 -> failed",
+            "Execution Result\nstep1 -> failed: Customer service unavailable",
         )
         self.assertEqual(
             second_messages[-2]["content"],

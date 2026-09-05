@@ -131,7 +131,7 @@ class Planner:
                     "completed"
                     if step.id in execution_result.completed_steps
                     else (
-                        "failed"
+                        f"failed: {execution_result.failed_steps[step.id]}"
                         if step.id in execution_result.failed_steps
                         else "blocked"
                     )

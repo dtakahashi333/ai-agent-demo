@@ -226,7 +226,7 @@ class TestPlanner(TestCase):
         execution_result = PlanExecutionResult(
             status=PlanExecutionStatus.NEEDS_REPLAN,
             completed_steps={"A"},
-            failed_steps={"B"},
+            failed_steps={"B": "Orders service unavailable"},
         )
 
         planner.plan(
@@ -239,7 +239,7 @@ class TestPlanner(TestCase):
             execution_result=execution_result,
         )
 
-        messages = mock_planner_llm.call_args.args[0]
+        messages = mock_planner_llm.call_args.kwargs["messages"]
 
         self.assertEqual(
             messages[-2]["content"],
@@ -248,5 +248,7 @@ class TestPlanner(TestCase):
 
         self.assertEqual(
             messages[-1]["content"],
-            "Execution Result\n" "A -> completed\n" "B -> failed",
+            "Execution Result\n"
+            "A -> completed\n"
+            "B -> failed: Orders service unavailable",
         )
