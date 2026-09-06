@@ -21,13 +21,10 @@ class AgentRunner:
     def run(self, objective: str) -> str:
         state = AgentState()
 
-        # Count replanning attempts, not initial planning.
-        replan_count = 0
-
         previous_plan = None
         execution_result = None
 
-        while True:
+        for _ in range(self.max_replans + 1):
             plan = self.planner.plan(
                 objective=objective,
                 capabilities=self.capabilities,
@@ -40,18 +37,14 @@ class AgentRunner:
                 react_executor=self.react_executor,
             )
 
-            result = plan_executor.execute(state=state)
+            execution_result = plan_executor.execute(state=state)
 
-            if result.status == PlanExecutionStatus.COMPLETED:
-                return result.response
-
-            replan_count += 1
-
-            if replan_count > self.max_replans:
-                raise RuntimeError(
-                    f"Agent execution failed after {replan_count} replanning attempt(s). "
-                    f"Failed steps: {result.failed_steps}"
-                )
+            if execution_result.status == PlanExecutionStatus.COMPLETED:
+                return execution_result.response
 
             previous_plan = plan
-            execution_result = result
+
+        raise RuntimeError(
+            f"Agent execution failed after {self.max_replans} replanning attempt(s). "
+            f"Failed steps: {execution_result.failed_steps}"
+        )

@@ -75,9 +75,9 @@ MAX_REPLANS = 1
 
 def run_agent(
     query: str,
-    planner_llm: PlannerLLM = None,
-    react_llm: ReActLLM = None,
-    react_executor: ReActExecutor = None,
+    planner_llm: PlannerLLM | None = None,
+    react_llm: ReActLLM | None = None,
+    react_executor: ReActExecutor | None = None,
 ) -> str:
     """
     run_agent
@@ -137,12 +137,10 @@ def run_agent(
             config=config,
         )
 
-    planner = Planner(
-        llm_call=planner_llm,
-    )
-
     runner = AgentRunner(
-        planner=planner,
+        planner=Planner(
+            llm_call=planner_llm,
+        ),
         react_executor=react_executor,
         capabilities=agent_config.capabilities,
         max_replans=MAX_REPLANS,

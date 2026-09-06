@@ -212,51 +212,6 @@ class TestAgent(TestCase):
             second_execution.kwargs["objective"], "Try finding customer another way"
         )
 
-    def test_reuses_agent_state_when_replanning(self):
-        plan1_steps = [
-            PlannedStep(
-                id="step1",
-                description="Find customer",
-                dependencies=[],
-            ),
-        ]
-        plan2_steps = [
-            PlannedStep(
-                id="step1",
-                description="Try finding customer another way",
-                dependencies=[],
-            ),
-        ]
-        mock_planner_llm = Mock()
-        mock_planner_llm.side_effect = [
-            make_planner_client_response(steps=plan1_steps),
-            make_planner_client_response(steps=plan2_steps),
-        ]
-
-        mock_react_executor = Mock(spec=ReActExecutor)
-        mock_react_executor.execute.side_effect = [
-            ReActExecutionResult(success=False, response=""),
-            ReActExecutionResult(success=True, response="Done"),
-        ]
-
-        result = run_agent(
-            query="Find customer",
-            planner_llm=mock_planner_llm,
-            react_executor=mock_react_executor,
-        )
-
-        self.assertEqual(result, "Done")
-
-        self.assertEqual(mock_react_executor.execute.call_count, 2)
-
-        first_execution = mock_react_executor.execute.call_args_list[0]
-        second_execution = mock_react_executor.execute.call_args_list[1]
-
-        self.assertIs(
-            first_execution.kwargs["state"],
-            second_execution.kwargs["state"],
-        )
-
     def test_raises_when_replanning_is_exhausted(self):
         plan1_steps = [
             PlannedStep(
@@ -291,7 +246,7 @@ class TestAgent(TestCase):
                 react_executor=mock_react_executor,
             )
 
-    def test_preserves_agent_state_when_replanning(self):
+    def test_preserves_state_across_replanning(self):
         plan1_steps = [
             PlannedStep(
                 id="step1",
