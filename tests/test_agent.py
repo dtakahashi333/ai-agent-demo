@@ -20,7 +20,7 @@ tools = build_llm_tools(
 
 
 class TestAgent(TestCase):
-    def test_composition_of_existing_components(self):
+    def test_runs_successfully(self):
         mock_planner_client = Mock()
         mock_planner_client.chat.completions.parse.return_value = (
             make_planner_client_response(
@@ -117,48 +117,6 @@ class TestAgent(TestCase):
                 "Find customer",
                 "Get customer orders",
             ],
-        )
-
-    def test_replans_after_plan_execution_failure(self):
-        plan1_steps = [
-            PlannedStep(
-                id="step1",
-                description="Find customer",
-                dependencies=[],
-            ),
-        ]
-        plan2_steps = [
-            PlannedStep(
-                id="step1",
-                description="Try finding customer another way",
-                dependencies=[],
-            ),
-        ]
-        mock_planner_client = Mock()
-        mock_planner_client.chat.completions.parse.side_effect = [
-            make_planner_client_response(steps=plan1_steps),
-            make_planner_client_response(steps=plan2_steps),
-        ]
-
-        mock_react_executor = Mock(spec=ReActExecutor)
-        mock_react_executor.execute.return_value = ReActExecutionResult(
-            success=False,
-            response="Failed",
-        )
-
-        with self.assertRaises(RuntimeError):
-            run_agent(
-                query="Find customer",
-                planner_llm=PlannerLLM(
-                    client=mock_planner_client,
-                    model="test-model",
-                ),
-                react_executor=mock_react_executor,
-            )
-
-        self.assertEqual(
-            mock_planner_client.chat.completions.parse.call_count,
-            2,
         )
 
     def test_replans_after_step_failure(self):
@@ -298,43 +256,6 @@ class TestAgent(TestCase):
             first_execution.kwargs["state"],
             second_execution.kwargs["state"],
         )
-
-    def test_stops_after_one_replan(self):
-        plan1_steps = [
-            PlannedStep(
-                id="step1",
-                description="Find customer",
-                dependencies=[],
-            ),
-        ]
-        plan2_steps = [
-            PlannedStep(
-                id="step1",
-                description="Try finding customer another way",
-                dependencies=[],
-            ),
-        ]
-        mock_planner_llm = Mock()
-        mock_planner_llm.side_effect = [
-            make_planner_client_response(steps=plan1_steps),
-            make_planner_client_response(steps=plan2_steps),
-        ]
-
-        mock_react_executor = Mock(spec=ReActExecutor)
-        mock_react_executor.execute.side_effect = [
-            ReActExecutionResult(success=False, response=""),
-            ReActExecutionResult(success=False, response=""),
-        ]
-
-        with self.assertRaises(RuntimeError):
-            run_agent(
-                query="Find customer",
-                planner_llm=mock_planner_llm,
-                react_executor=mock_react_executor,
-            )
-
-        self.assertEqual(mock_planner_llm.call_count, 2)
-        self.assertEqual(mock_react_executor.execute.call_count, 2)
 
     def test_raises_when_replanning_is_exhausted(self):
         plan1_steps = [

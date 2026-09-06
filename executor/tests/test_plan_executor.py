@@ -98,7 +98,7 @@ class TestGetStepStatus(TestCase):
 
         self.assertEqual(StepStatus.WAITING, status)
 
-    def test_step_with_no_dependencies_is_ready(self):
+    def test_root_step_is_ready(self):
         executor = PlanExecutor(
             plan=self.plan,
             react_executor=self.mock_react_executor,
@@ -252,6 +252,13 @@ class TestExecute(TestCase):
 
         self.assertEqual(result.failed_steps, {"step1": "Failed"})
 
+        self.assertEqual(mock_react_executor.execute.call_count, 1)
+
+        self.assertEqual(
+            mock_react_executor.execute.call_args.kwargs["objective"],
+            "Find customer",
+        )
+
     def test_returns_final_response(self):
         state = AgentState()
 
@@ -280,7 +287,7 @@ class TestExecute(TestCase):
 
         self.assertEqual(result.response, "Customer found")
 
-    def test_returns_completed_and_failed_steps(self):
+    def test_returns_execution_state_when_replanning(self):
         state = AgentState()
 
         plan = Plan(
@@ -300,67 +307,33 @@ class TestExecute(TestCase):
 
         mock_react_executor = Mock(spec=ReActExecutor)
         mock_react_executor.execute.side_effect = [
-            ReActExecutionResult(success=True, response="Alice found"),
-            ReActExecutionResult(success=False, response=""),
+            ReActExecutionResult(
+                success=True,
+                response="Alice found",
+            ),
+            ReActExecutionResult(
+                success=False,
+                response="Orders unavailable",
+            ),
         ]
 
-        plan_executor = PlanExecutor(
+        executor = PlanExecutor(
             plan=plan,
             react_executor=mock_react_executor,
         )
 
-        result = plan_executor.execute(state=state)
+        result = executor.execute(state=state)
 
         self.assertEqual(
             result.status,
             PlanExecutionStatus.NEEDS_REPLAN,
         )
-
-        self.assertEqual(result.completed_steps, {"A"})
-
-        self.assertEqual(result.failed_steps, {"B": ""})
-
-    def test_does_not_return_intermediate_response_when_replanning(self):
-        state = AgentState()
-
-        plan = Plan(
-            steps=[
-                PlanStep(
-                    id="A",
-                    description="Find customer",
-                    dependencies=[],
-                ),
-                PlanStep(
-                    id="B",
-                    description="Get customer orders",
-                    dependencies=["A"],
-                ),
-            ]
-        )
-
-        mock_react_executor = Mock(spec=ReActExecutor)
-        mock_react_executor.execute.side_effect = [
-            ReActExecutionResult(success=True, response="Customer found"),
-            ReActExecutionResult(success=False, response=""),
-        ]
-
-        plan_executor = PlanExecutor(
-            plan=plan,
-            react_executor=mock_react_executor,
-        )
-
-        result = plan_executor.execute(state=state)
-
-        self.assertEqual(
-            result.status,
-            PlanExecutionStatus.NEEDS_REPLAN,
-        )
-
         self.assertIsNone(result.response)
-
         self.assertEqual(result.completed_steps, {"A"})
-
-        self.assertEqual(result.failed_steps, {"B": ""})
+        self.assertEqual(
+            result.failed_steps,
+            {"B": "Orders unavailable"},
+        )
 
     def test_preserves_failure_reason_for_replanning(self):
         plan = Plan(
