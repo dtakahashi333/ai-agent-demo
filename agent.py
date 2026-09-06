@@ -1,21 +1,15 @@
 # agent.py
 import os
-import json
 
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from agent_runner import AgentRunner
 from config.agent_config import AgentConfig
-from executor.plan_executor import (
-    PlanExecutionResult,
-    PlanExecutionStatus,
-    PlanExecutor,
-)
 from executor.react_executor import ReActExecutor
 from llm.planner_llm import PlannerLLM
 from llm.react_llm import ReActLLM
 from planner.planner import Planner
-from state.agent_state import AgentState
 from config.settings import config
 from tool_registry import build_llm_tools, tool_registry
 
@@ -76,6 +70,8 @@ run_agent:
     "Should I ask the Planner again?"
 """
 
+MAX_REPLANS = 1
+
 
 def run_agent(
     query: str,
@@ -117,9 +113,8 @@ def run_agent(
             "Get customer orders",
             "Get customer subscription plan",
             "Create a customer summary",
-        ]
+        ],
     )
-    state = AgentState()
 
     model = os.getenv("LLM_MODEL")
 
@@ -146,34 +141,11 @@ def run_agent(
         llm_call=planner_llm,
     )
 
-    # Count replanning attempts, not initial planning.
-    replan_count = 0
+    runner = AgentRunner(
+        planner=planner,
+        react_executor=react_executor,
+        capabilities=agent_config.capabilities,
+        max_replans=MAX_REPLANS,
+    )
 
-    previous_plan = None
-    execution_result = None
-
-    while True:
-        plan = planner.plan(
-            objective=query,
-            capabilities=agent_config.capabilities,
-            previous_plan=previous_plan,
-            execution_result=execution_result,
-        )
-
-        plan_executor = PlanExecutor(
-            plan=plan,
-            react_executor=react_executor,
-        )
-
-        result = plan_executor.execute(state=state)
-
-        if result.status == PlanExecutionStatus.COMPLETED:
-            return result.response
-
-        replan_count += 1
-
-        if replan_count > 1:
-            return result.response
-
-        previous_plan = plan
-        execution_result = result
+    return runner.run(objective=query)

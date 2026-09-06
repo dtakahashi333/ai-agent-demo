@@ -146,14 +146,15 @@ class TestAgent(TestCase):
             response="Failed",
         )
 
-        run_agent(
-            query="Find customer",
-            planner_llm=PlannerLLM(
-                client=mock_planner_client,
-                model="test-model",
-            ),
-            react_executor=mock_react_executor,
-        )
+        with self.assertRaises(RuntimeError):
+            run_agent(
+                query="Find customer",
+                planner_llm=PlannerLLM(
+                    client=mock_planner_client,
+                    model="test-model",
+                ),
+                react_executor=mock_react_executor,
+            )
 
         self.assertEqual(
             mock_planner_client.chat.completions.parse.call_count,
@@ -183,7 +184,9 @@ class TestAgent(TestCase):
 
         mock_react_executor = Mock(spec=ReActExecutor)
         mock_react_executor.execute.side_effect = [
-            ReActExecutionResult(success=False, response="Customer service unavailable"),
+            ReActExecutionResult(
+                success=False, response="Customer service unavailable"
+            ),
             ReActExecutionResult(success=True, response="Done"),
         ]
 
@@ -323,16 +326,17 @@ class TestAgent(TestCase):
             ReActExecutionResult(success=False, response=""),
         ]
 
-        run_agent(
-            query="Find customer",
-            planner_llm=mock_planner_llm,
-            react_executor=mock_react_executor,
-        )
+        with self.assertRaises(RuntimeError):
+            run_agent(
+                query="Find customer",
+                planner_llm=mock_planner_llm,
+                react_executor=mock_react_executor,
+            )
 
         self.assertEqual(mock_planner_llm.call_count, 2)
         self.assertEqual(mock_react_executor.execute.call_count, 2)
 
-    def test_returns_response_when_replanning_is_exhausted(self):
+    def test_raises_when_replanning_is_exhausted(self):
         plan1_steps = [
             PlannedStep(
                 id="step1",
@@ -359,13 +363,12 @@ class TestAgent(TestCase):
             ReActExecutionResult(success=False, response=""),
         ]
 
-        result = run_agent(
-            query="Find customer",
-            planner_llm=mock_planner_llm,
-            react_executor=mock_react_executor,
-        )
-
-        self.assertIsNone(result)
+        with self.assertRaisesRegex(RuntimeError, "Failed steps"):
+            run_agent(
+                query="Find customer",
+                planner_llm=mock_planner_llm,
+                react_executor=mock_react_executor,
+            )
 
     def test_preserves_agent_state_when_replanning(self):
         plan1_steps = [
