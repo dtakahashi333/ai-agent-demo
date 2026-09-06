@@ -3,6 +3,7 @@ from unittest import TestCase
 from unittest.mock import Mock
 
 from executor.plan_executor import PlanExecutionResult, PlanExecutionStatus
+from llm.planner_llm import PlannerLLM
 from planner.plan import Plan
 from planner.plan_step import PlanStep
 from planner.planner import Planner
@@ -10,16 +11,11 @@ from planner.planning_response import PlannedStep
 from tests.utils.client_responses import make_planner_client_response
 
 
-class FakePlannerLLM:
-    def __init__(self):
-        self.messages = None
-
-    def __call__(self, messages):
-        """
-        response.choices[0].message.parsed
-        """
-        self.messages = messages
-        return make_planner_client_response(
+class TestPlanner(TestCase):
+    def setUp(self):
+        super().setUp()
+        self.fake_planner_llm = Mock(spec=PlannerLLM)
+        self.fake_planner_llm.return_value = make_planner_client_response(
             steps=[
                 PlannedStep(
                     id="A",
@@ -34,14 +30,8 @@ class FakePlannerLLM:
             ]
         )
 
-
-class InvalidPlanPlannerLLM:
-    def __init__(self):
-        self.messages = None
-
-    def __call__(self, messages):
-        self.messages = messages
-        return make_planner_client_response(
+        self.invalid_plan_planner_llm = Mock(spec=PlannerLLM)
+        self.invalid_plan_planner_llm.return_value = make_planner_client_response(
             steps=[
                 PlannedStep(
                     id="A",
@@ -56,17 +46,11 @@ class InvalidPlanPlannerLLM:
             ]
         )
 
+        self.failing_planner_llm = Mock(spec=PlannerLLM)
+        self.failing_planner_llm.side_effect = RuntimeError("LLM unavailable")
 
-class FailingPlannerLLM:
-    def __call__(self, messages):
-        raise RuntimeError("LLM unavailable")
-
-
-class TestPlanner(TestCase):
     def test_creates_plan(self):
-        llm_call = FakePlannerLLM()
-
-        planner = Planner(llm_call=llm_call)
+        planner = Planner(llm_call=self.fake_planner_llm)
 
         plan = planner.plan(
             "Create a customer summary",
@@ -88,9 +72,7 @@ class TestPlanner(TestCase):
         self.assertEqual(["A"], plan.steps[1].dependencies)
 
     def test_sends_objective_and_capabilities_to_llm(self):
-        llm_call = FakePlannerLLM()
-
-        planner = Planner(llm_call=llm_call)
+        planner = Planner(llm_call=self.fake_planner_llm)
 
         planner.plan(
             "Create a customer summary",
@@ -101,33 +83,24 @@ class TestPlanner(TestCase):
             ],
         )
 
+        messages = self.fake_planner_llm.call_args.kwargs["messages"]
+
         self.assertEqual(
             "Create a customer summary",
-            llm_call.messages[1]["content"]
+            messages[1]["content"]
             .split("Available capabilities:")[0]
             .replace("Objective:\n", "")
             .strip(),
         )
 
-        self.assertIn(
-            "- Find customer",
-            llm_call.messages[1]["content"],
-        )
+        self.assertIn("- Find customer", messages[1]["content"])
 
-        self.assertIn(
-            "- Get customer orders",
-            llm_call.messages[1]["content"],
-        )
+        self.assertIn("- Get customer orders", messages[1]["content"])
 
-        self.assertIn(
-            "- Get customer plan",
-            llm_call.messages[1]["content"],
-        )
+        self.assertIn("- Get customer plan", messages[1]["content"])
 
     def test_rejects_invalid_plan(self):
-        llm_call = InvalidPlanPlannerLLM()
-
-        planner = Planner(llm_call=llm_call)
+        planner = Planner(llm_call=self.invalid_plan_planner_llm)
 
         with self.assertRaises(ValueError) as context:
             planner.plan(
@@ -139,14 +112,10 @@ class TestPlanner(TestCase):
                 ],
             )
 
-        self.assertIn(
-            "UNKNOWN_DEPENDENCY",
-            str(context.exception),
-        )
+        self.assertIn("UNKNOWN_DEPENDENCY", str(context.exception))
 
     def test_propagates_llm_error(self):
-        llm_call = FailingPlannerLLM()
-        planner = Planner(llm_call=llm_call)
+        planner = Planner(llm_call=self.failing_planner_llm)
 
         with self.assertRaises(RuntimeError):
             planner.plan(
@@ -159,8 +128,7 @@ class TestPlanner(TestCase):
             )
 
     def test_rejects_empty_capabilities(self):
-        llm_call = FakePlannerLLM()
-        planner = Planner(llm_call=llm_call)
+        planner = Planner(llm_call=self.fake_planner_llm)
 
         with self.assertRaises(ValueError):
             planner.plan(
@@ -168,12 +136,11 @@ class TestPlanner(TestCase):
                 capabilities=[],
             )
 
-        # Planner rejects an impossible planning request before making an LLM call.
-        self.assertIsNone(llm_call.messages)
+        self.fake_planner_llm.assert_not_called()
 
     def test_sends_previous_execution_context_to_llm(self):
-        mock_planner_llm = Mock()
-        mock_planner_llm.return_value = make_planner_client_response(
+        planner_llm = Mock(spec=PlannerLLM)
+        planner_llm.return_value = make_planner_client_response(
             steps=[
                 PlannedStep(
                     id="A",
@@ -182,7 +149,7 @@ class TestPlanner(TestCase):
                 ),
             ]
         )
-        planner = Planner(llm_call=mock_planner_llm)
+        planner = Planner(llm_call=planner_llm)
 
         previous_plan = Plan(
             steps=[
@@ -215,7 +182,7 @@ class TestPlanner(TestCase):
             execution_result=execution_result,
         )
 
-        messages = mock_planner_llm.call_args.kwargs["messages"]
+        messages = planner_llm.call_args.kwargs["messages"]
 
         self.assertEqual(
             messages[-2]["content"],
