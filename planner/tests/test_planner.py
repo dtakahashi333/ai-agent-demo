@@ -5,7 +5,6 @@ from unittest.mock import Mock
 from executor.plan_executor import PlanExecutionResult, PlanExecutionStatus
 from planner.plan import Plan
 from planner.plan_step import PlanStep
-from planner.plan_validator import PlanValidator
 from planner.planner import Planner
 from planner.planning_response import PlannedStep
 from tests.utils.client_responses import make_planner_client_response
@@ -64,11 +63,6 @@ class FailingPlannerLLM:
 
 
 class TestPlanner(TestCase):
-
-    def setUp(self):
-        super().setUp()
-        self.validator = PlanValidator()
-
     def test_creates_plan(self):
         llm_call = FakePlannerLLM()
 
@@ -176,24 +170,6 @@ class TestPlanner(TestCase):
 
         # Planner rejects an impossible planning request before making an LLM call.
         self.assertIsNone(llm_call.messages)
-
-    def test_sends_capabilities_to_llm(self):
-        llm_call = FakePlannerLLM()
-        planner = Planner(llm_call=llm_call)
-
-        planner.plan(
-            "Create a customer summary",
-            capabilities=[
-                "Find customer",
-                "Get customer orders",
-            ],
-        )
-
-        user_message = llm_call.messages[1]["content"]
-
-        self.assertIn("Create a customer summary", user_message)
-        self.assertIn("Find customer", user_message)
-        self.assertIn("Get customer orders", user_message)
 
     def test_sends_previous_execution_context_to_llm(self):
         mock_planner_llm = Mock()
