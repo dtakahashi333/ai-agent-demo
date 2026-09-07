@@ -146,18 +146,7 @@ class Planner:
         return [
             {
                 "role": "system",
-                "content": (
-                    "You are a planning agent.\n\n"
-                    "Create an executable plan to accomplish the user's objective.\n"
-                    "Each step must represent one concrete objective that can be "
-                    "executed by an agent.\n"
-                    "Use only the available capabilities.\n"
-                    "Represent dependencies between steps when one step requires "
-                    "the result of another step.\n"
-                    "Do not create unnecessary steps.\n"
-                    "The plan must be logically ordered and must not contain "
-                    "circular dependencies."
-                ),
+                "content": self.system_prompt,
             },
             {
                 "role": "user",

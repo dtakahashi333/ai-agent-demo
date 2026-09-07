@@ -24,9 +24,6 @@ class AgentRunner:
     def run(self, objective: str) -> str:
         state = AgentState()
 
-        previous_plan = None
-        execution_result = None
-
         plan = self.planner.plan(
             objective=objective,
             capabilities=self.capabilities,

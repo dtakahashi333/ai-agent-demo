@@ -6,7 +6,7 @@ from executor.plan_executor import PlanExecutionResult
 from planner.plan import Plan
 from planner.plan_step import PlanStep
 from planner.plan_validator import PlanValidator
-from prompts.planner_prompt import PLANNER_SYSTEM_PROMPT
+from prompts.replanner_prompt import REPLANNER_SYSTEM_PROMPT
 from state.agent_state import AgentState
 
 """
@@ -44,15 +44,15 @@ class Replanner:
     def __init__(self, llm_call: Any):
         self.llm_call = llm_call
         self.validator = PlanValidator()
-        self.system_prompt = PLANNER_SYSTEM_PROMPT
+        self.system_prompt = REPLANNER_SYSTEM_PROMPT
 
     def replan(
         self,
         objective: str,
         capabilities: list[str],
-        previous_plan: Plan | None = None,
-        execution_result: PlanExecutionResult | None = None,
-        state: AgentState | None = None,
+        previous_plan: Plan,
+        execution_result: PlanExecutionResult,
+        state: AgentState,
     ) -> Plan:
         # If the Planner has no available capabilities, it should not call the LLM.
         if not capabilities:
@@ -66,21 +66,7 @@ class Replanner:
         )
 
         messages = [
-            {
-                "role": "system",
-                "content": (
-                    "You are a planning agent.\n\n"
-                    "Create an executable plan to accomplish the user's objective.\n"
-                    "Each step must represent one concrete objective that can be "
-                    "executed by an agent.\n"
-                    "Use only the available capabilities.\n"
-                    "Represent dependencies between steps when one step requires "
-                    "the result of another step.\n"
-                    "Do not create unnecessary steps.\n"
-                    "The plan must be logically ordered and must not contain "
-                    "circular dependencies."
-                ),
-            },
+            {"role": "system", "content": self.system_prompt},
             {
                 "role": "user",
                 "content": (
