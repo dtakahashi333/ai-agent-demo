@@ -63,45 +63,36 @@ Planner benefits:
 * Human/debugging visibility — developers can inspect what the agent intended to accomplish.
 """
 
+"""
+            Planner
+              ↑
+    ┌─────────┴─────────┐
+    │                   │
+objective         capabilities
+    │                   │
+    └─────────┬─────────┘
+              ↓
+             LLM
+              ↓
+             Plan
+
+| State                  | Planner probably needs it? |
+|------------------------|----------------------------|
+| retrieved_customer     | Maybe yes                  |
+| retrieved_count        | Maybe                      |
+| seen_failed_tool_calls | Probably not directly      |
+| iteration              | No                         |
+| messages               | No                         |
+"""
+
 
 class Planner:
-    def __init__(
-        self,
-        llm_call: Any,
-    ):
+    def __init__(self, llm_call: Any):
         self.llm_call = llm_call
         self.validator = PlanValidator()
         self.system_prompt = PLANNER_SYSTEM_PROMPT
 
-    def plan(
-        self,
-        objective: str,
-        capabilities: list[str],
-        previous_plan: Plan | None = None,
-        execution_result: PlanExecutionResult | None = None,
-    ) -> Plan:
-        """
-                    Planner
-                      ↑
-            ┌─────────┴─────────┐
-            │                   │
-        objective         capabilities
-            │                   │
-            └─────────┬─────────┘
-                      ↓
-                     LLM
-                      ↓
-                     Plan
-
-        | State                  | Planner probably needs it? |
-        |------------------------|----------------------------|
-        | retrieved_customer     | Maybe yes                  |
-        | retrieved_count        | Maybe                      |
-        | seen_failed_tool_calls | Probably not directly      |
-        | iteration              | No                         |
-        | messages               | No                         |
-        """
-
+    def plan(self, objective: str, capabilities: list[str]) -> Plan:
         # If the Planner has no available capabilities, it should not call the LLM.
         if not capabilities:
             raise ValueError("Planner requires at least one capability.")
@@ -110,41 +101,6 @@ class Planner:
             objective,
             capabilities,
         )
-
-        if previous_plan and execution_result:
-            messages.append(
-                {
-                    "role": "user",
-                    "content": "Previous Plan\n"
-                    + "\n".join(
-                        [
-                            f"{step.id}: {step.description}"
-                            for step in previous_plan.steps
-                        ]
-                    ),
-                }
-            )
-
-            execution_lines = [
-                f"{step.id} -> "
-                + (
-                    "completed"
-                    if step.id in execution_result.completed_steps
-                    else (
-                        f"failed: {execution_result.failed_steps[step.id]}"
-                        if step.id in execution_result.failed_steps
-                        else "blocked"
-                    )
-                )
-                for step in previous_plan.steps
-            ]
-
-            messages.append(
-                {
-                    "role": "user",
-                    "content": "Execution Result\n" + "\n".join(execution_lines),
-                }
-            )
 
         response = self.llm_call(messages=messages)
 
@@ -185,21 +141,6 @@ class Planner:
         6. Don't create circular dependencies.
         7. Make the final steps collectively accomplish the user's objective.
         """
-        # capabilities_text = "\n".join(f"- {capability}" for capability in capabilities)
-
-        # return [
-        #     {
-        #         "role": "system",
-        #         "content": self.system_prompt,
-        #     },
-        #     {
-        #         "role": "user",
-        #         "content": (
-        #             f"Objective:\n{objective}\n\n"
-        #             f"Available capabilities:\n{capabilities_text}"
-        #         ),
-        #     },
-        # ]
         capabilities_text = "\n".join(f"- {capability}" for capability in capabilities)
 
         return [

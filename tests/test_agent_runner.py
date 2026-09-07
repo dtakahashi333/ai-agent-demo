@@ -8,10 +8,7 @@ from executor.react_executor import ReActExecutionResult, ReActExecutor
 from planner.plan import Plan
 from planner.plan_step import PlanStep
 from planner.planner import Planner
-from planner.planning_response import PlannedStep
-from tests.utils.client_responses import (
-    make_planner_client_response,
-)
+from planner.replanner import Replanner
 
 
 class TestAgentRunner(TestCase):
@@ -35,6 +32,7 @@ class TestAgentRunner(TestCase):
 
         runner = AgentRunner(
             planner=mock_planner,
+            replanner=Mock(spec=Replanner),
             react_executor=mock_react_executor,
             capabilities=[
                 "Find customer by email",
@@ -73,6 +71,7 @@ class TestAgentRunner(TestCase):
 
         runner = AgentRunner(
             planner=mock_planner,
+            replanner=Mock(spec=Replanner),
             react_executor=mock_react_executor,
             capabilities=capabilities,
         )
@@ -82,8 +81,6 @@ class TestAgentRunner(TestCase):
         mock_planner.plan.assert_called_once_with(
             objective="Find customer",
             capabilities=capabilities,
-            previous_plan=None,
-            execution_result=None,
         )
 
     def test_replans_after_execution_failure(self):
@@ -107,7 +104,10 @@ class TestAgentRunner(TestCase):
         )
 
         mock_planner = Mock(spec=Planner)
-        mock_planner.plan.side_effect = [plan1, plan2]
+        mock_planner.plan.return_value = plan1
+
+        mock_replanner = Mock(spec=Replanner)
+        mock_replanner.replan.return_value = plan2
 
         mock_react_executor = Mock(spec=ReActExecutor)
         mock_react_executor.execute.side_effect = [
@@ -123,6 +123,7 @@ class TestAgentRunner(TestCase):
 
         runner = AgentRunner(
             planner=mock_planner,
+            replanner=mock_replanner,
             react_executor=mock_react_executor,
             capabilities=["Find customer"],
             max_replans=1,
@@ -130,7 +131,8 @@ class TestAgentRunner(TestCase):
 
         runner.run(objective="Find customer")
 
-        self.assertEqual(mock_planner.plan.call_count, 2)
+        self.assertEqual(mock_planner.plan.call_count, 1)
+        self.assertEqual(mock_replanner.replan.call_count, 1)
 
     def test_passes_replanning_context_to_planner(self):
         plan1 = Plan(
@@ -142,7 +144,6 @@ class TestAgentRunner(TestCase):
                 ),
             ]
         )
-
         plan2 = Plan(
             steps=[
                 PlanStep(
@@ -154,7 +155,10 @@ class TestAgentRunner(TestCase):
         )
 
         mock_planner = Mock(spec=Planner)
-        mock_planner.plan.side_effect = [plan1, plan2]
+        mock_planner.plan.return_value = plan1
+
+        mock_replanner = Mock(spec=Replanner)
+        mock_replanner.replan.return_value = plan2
 
         mock_react_executor = Mock(spec=ReActExecutor)
         mock_react_executor.execute.side_effect = [
@@ -170,6 +174,7 @@ class TestAgentRunner(TestCase):
 
         runner = AgentRunner(
             planner=mock_planner,
+            replanner=mock_replanner,
             react_executor=mock_react_executor,
             capabilities=["Find customer"],
             max_replans=1,
@@ -179,43 +184,37 @@ class TestAgentRunner(TestCase):
 
         self.assertEqual(result, "Alice found")
 
-        second_call = mock_planner.plan.call_args_list[1]
+        second_call = mock_replanner.replan.call_args
 
         self.assertIs(second_call.kwargs["previous_plan"], plan1)
 
         execution_result = second_call.kwargs["execution_result"]
 
-        self.assertEqual(
-            execution_result.status,
-            PlanExecutionStatus.NEEDS_REPLAN,
-        )
-        self.assertEqual(
-            execution_result.failed_steps,
-            {"step1": "Failed"},
-        )
+        self.assertEqual(execution_result.status, PlanExecutionStatus.NEEDS_REPLAN)
+        self.assertEqual(execution_result.failed_steps, {"step1": "Failed"})
 
     def test_reuses_agent_state_when_replanning(self):
         mock_planner = Mock(spec=Planner)
-        mock_planner.plan.side_effect = [
-            Plan(
-                steps=[
-                    PlanStep(
-                        id="step1",
-                        description="Find customer",
-                        dependencies=[],
-                    ),
-                ]
-            ),
-            Plan(
-                steps=[
-                    PlanStep(
-                        id="step1",
-                        description="Create customer summary",
-                        dependencies=[],
-                    ),
-                ]
-            ),
-        ]
+        mock_planner.plan.return_value = Plan(
+            steps=[
+                PlanStep(
+                    id="step1",
+                    description="Find customer",
+                    dependencies=[],
+                ),
+            ]
+        )
+
+        mock_replanner = Mock(spec=Replanner)
+        mock_replanner.replan.return_value = Plan(
+            steps=[
+                PlanStep(
+                    id="step1",
+                    description="Create customer summary",
+                    dependencies=[],
+                ),
+            ]
+        )
 
         mock_react_executor = Mock(spec=ReActExecutor)
 
@@ -239,6 +238,7 @@ class TestAgentRunner(TestCase):
 
         runner = AgentRunner(
             planner=mock_planner,
+            replanner=mock_replanner,
             react_executor=mock_react_executor,
             capabilities=["Find customer", "Create customer summary"],
             max_replans=1,
@@ -269,7 +269,10 @@ class TestAgentRunner(TestCase):
         )
 
         mock_planner = Mock(spec=Planner)
-        mock_planner.plan.side_effect = [plan1, plan2]
+        mock_planner.plan.return_value = plan1
+
+        mock_replanner = Mock(spec=Replanner)
+        mock_replanner.replan.return_value = plan2
 
         mock_react_executor = Mock(spec=ReActExecutor)
         mock_react_executor.execute.side_effect = [
@@ -285,6 +288,7 @@ class TestAgentRunner(TestCase):
 
         runner = AgentRunner(
             planner=mock_planner,
+            replanner=mock_replanner,
             react_executor=mock_react_executor,
             capabilities=["Find customer"],
             max_replans=1,
@@ -292,20 +296,13 @@ class TestAgentRunner(TestCase):
 
         runner.run(objective="Find customer")
 
-        first_call = mock_planner.plan.call_args_list[0]
-        second_call = mock_planner.plan.call_args_list[1]
-
-        self.assertIsNone(first_call.kwargs["previous_plan"])
-        self.assertIsNone(first_call.kwargs["execution_result"])
+        second_call = mock_replanner.replan.call_args
 
         self.assertIs(second_call.kwargs["previous_plan"], plan1)
 
         execution_result = second_call.kwargs["execution_result"]
 
-        self.assertEqual(
-            execution_result.status,
-            PlanExecutionStatus.NEEDS_REPLAN,
-        )
+        self.assertEqual(execution_result.status, PlanExecutionStatus.NEEDS_REPLAN)
         self.assertEqual(
             execution_result.failed_steps,
             {"step1": "Customer service unavailable"},
@@ -332,7 +329,10 @@ class TestAgentRunner(TestCase):
         )
 
         mock_planner = Mock(spac=Planner)
-        mock_planner.plan.side_effect = [plan1, plan2]
+        mock_planner.plan.return_value = plan1
+
+        mock_replanner = Mock(spec=Replanner)
+        mock_replanner.replan.return_value = plan2
 
         mock_react_executor = Mock(spec=ReActExecutor)
         mock_react_executor.execute.side_effect = [
@@ -343,6 +343,7 @@ class TestAgentRunner(TestCase):
         with self.assertRaisesRegex(RuntimeError, "Failed steps"):
             runner = AgentRunner(
                 planner=mock_planner,
+                replanner=mock_replanner,
                 react_executor=mock_react_executor,
                 capabilities=["Find customer"],
                 max_replans=1,

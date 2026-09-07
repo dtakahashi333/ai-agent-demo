@@ -2,6 +2,7 @@
 from executor.plan_executor import PlanExecutionStatus, PlanExecutor
 from executor.react_executor import ReActExecutor
 from planner.planner import Planner
+from planner.replanner import Replanner
 from state.agent_state import AgentState
 
 
@@ -9,11 +10,13 @@ class AgentRunner:
     def __init__(
         self,
         planner: Planner,
+        replanner: Replanner,
         react_executor: ReActExecutor,
         capabilities: list[str],
         max_replans: int = 1,
     ):
         self.planner = planner
+        self.replanner = replanner
         self.react_executor = react_executor
         self.capabilities = capabilities
         self.max_replans = max_replans
@@ -24,14 +27,12 @@ class AgentRunner:
         previous_plan = None
         execution_result = None
 
-        for _ in range(self.max_replans + 1):
-            plan = self.planner.plan(
-                objective=objective,
-                capabilities=self.capabilities,
-                previous_plan=previous_plan,
-                execution_result=execution_result,
-            )
+        plan = self.planner.plan(
+            objective=objective,
+            capabilities=self.capabilities,
+        )
 
+        for attempt in range(self.max_replans + 1):
             plan_executor = PlanExecutor(
                 plan=plan,
                 react_executor=self.react_executor,
@@ -42,7 +43,16 @@ class AgentRunner:
             if execution_result.status == PlanExecutionStatus.COMPLETED:
                 return execution_result.response
 
-            previous_plan = plan
+            if attempt == self.max_replans:
+                break
+
+            plan = self.replanner.replan(
+                objective=objective,
+                capabilities=self.capabilities,
+                previous_plan=plan,
+                execution_result=execution_result,
+                state=state,
+            )
 
         raise RuntimeError(
             f"Agent execution failed after {self.max_replans} replanning attempt(s). "

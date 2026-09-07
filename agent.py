@@ -11,6 +11,7 @@ from llm.planner_llm import PlannerLLM
 from llm.react_llm import ReActLLM
 from planner.planner import Planner
 from config.settings import config
+from planner.replanner import Replanner
 from tool_registry import build_llm_tools, tool_registry
 
 load_dotenv()
@@ -139,6 +140,9 @@ def run_agent(
 
     runner = AgentRunner(
         planner=Planner(
+            llm_call=planner_llm,
+        ),
+        replanner=Replanner(
             llm_call=planner_llm,
         ),
         react_executor=react_executor,
