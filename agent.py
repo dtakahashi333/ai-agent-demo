@@ -22,6 +22,7 @@ tools = build_llm_tools(tool_registry, config)
 client = OpenAI(
     api_key=os.getenv("LLM_API_KEY"),
     base_url=os.getenv("LLM_BASE_URL"),
+    timeout=30.0,
 )
 
 """
