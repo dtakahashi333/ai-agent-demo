@@ -5,16 +5,15 @@ from pprint import pprint
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from agent import (
-    call_llm,
-    run_agent,
-    tools,
-)
 from config.agent_config import AgentConfig
+from executor.plan_executor import PlanExecutionResult, PlanExecutionStatus
 from llm.planner_llm import PlannerLLM
-from llm.react_llm import ReActLLM
+from planner.plan import Plan
+from planner.plan_step import PlanStep
 from planner.planner import Planner
+from planner.replanner import Replanner
 from state.agent_state import AgentState
+from state.customer import Customer
 
 load_dotenv()
 
@@ -52,13 +51,78 @@ planner_llm = PlannerLLM(
     model=model,
 )
 
-planner = Planner(
+# planner = Planner(
+#     llm_call=planner_llm,
+# )
+
+# plan = planner.plan(
+#     objective=query,
+#     capabilities=agent_config.capabilities,
+# )
+
+# pprint(plan.steps)
+
+replanner = Replanner(
     llm_call=planner_llm,
 )
 
-plan = planner.plan(
-    objective=query,
-    capabilities=agent_config.capabilities,
+state = AgentState()
+
+# Populate this the same way your real ReActExecutor would.
+state.retrieved_customer = Customer(
+    id=42,
+    name="Alice",
+    email="alice@example.com",
+    plan="pro",
 )
 
-pprint(plan.steps)
+previous_plan = Plan(
+    steps=[
+        PlanStep(
+            id="find_customer",
+            description="Find the customer by email alice@example.com",
+            dependencies=[],
+        ),
+        PlanStep(
+            id="get_orders",
+            description="Get all orders for the customer",
+            dependencies=["find_customer"],
+        ),
+        PlanStep(
+            id="create_summary",
+            description="Create a summary of the customer's orders",
+            dependencies=["get_orders"],
+        ),
+    ]
+)
+
+execution_result = PlanExecutionResult(
+    status=PlanExecutionStatus.NEEDS_REPLAN,
+    completed_steps={"find_customer"},
+    failed_steps={"get_orders": "Database connection temporarily unavailable"},
+)
+
+new_plan = replanner.replan(
+    objective=(
+        "Find the customer with email alice@example.com "
+        "and create a summary of her orders."
+    ),
+    capabilities=[
+        "Find customer by email",
+        "Get customer orders",
+        "Get customer subscription plan",
+        "Create a customer summary",
+    ],
+    previous_plan=previous_plan,
+    execution_result=execution_result,
+    state=state,
+)
+
+for step in new_plan.steps:
+    print(
+        step.id,
+        "->",
+        step.description,
+        "dependencies:",
+        step.dependencies,
+    )
