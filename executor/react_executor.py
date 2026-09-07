@@ -198,18 +198,14 @@ class ReActExecutor:
         * internal policy bookkeeping
         """
 
-        state.initialize_messages(system_prompt=self.system_prompt)
+        state.initialize_messages(
+            system_prompt=self.system_prompt,
+            context=state.get_context(),
+        )
 
         state.reset_iteration()
 
-        state.add_messages(
-            messages=[
-                {
-                    "role": "user",
-                    "content": objective,
-                }
-            ]
-        )
+        state.add_messages(messages=[{"role": "user", "content": objective}])
 
         # Ask the LLM what to do next
         message = self._call_agent_llm(messages=state.messages, llm_call=self.llm_call)
@@ -275,7 +271,7 @@ class ReActExecutor:
         messages: list[dict],
         llm_call: Any,
     ) -> ChatCompletionMessage:
-        response = llm_call(messages)
+        response = llm_call(messages=messages)
         return response.choices[0].message
 
     def _process_tool_call_batch(
@@ -316,7 +312,7 @@ class ReActExecutor:
         for tool_call in message.tool_calls:
             if tool_call.id not in allowed_call_ids:
                 results.append(
-                    self._build_tool_result_message(
+                    self.build_tool_result_message(
                         tool_call=tool_call,
                         result=retrieval_limit_exceeded_error,
                     )
@@ -331,14 +327,14 @@ class ReActExecutor:
 
             if policy == "duplicate":
                 results.append(
-                    self._build_tool_result_message(
+                    self.build_tool_result_message(
                         tool_call=tool_call,
                         result=duplicate_tool_call_error,
                     )
                 )
             elif policy == "repeated":
                 results.append(
-                    self._build_tool_result_message(
+                    self.build_tool_result_message(
                         tool_call=tool_call,
                         result=repeated_tool_call_error,
                     )
@@ -367,7 +363,7 @@ class ReActExecutor:
             self.update_agent_state(state=state, tool_call=tool_call, result=result)
 
             results.append(
-                self._build_tool_result_message(
+                self.build_tool_result_message(
                     tool_call=tool_call,
                     result=result,
                 )
@@ -396,10 +392,10 @@ class ReActExecutor:
 
         return allowed
 
-    def _build_tool_result_message(
+    def build_tool_result_message(
         self,
         tool_call: ChatCompletionMessageToolCall,
-        result: dict,
+        result: Any,
     ) -> dict:
         return {
             "role": "tool",
@@ -460,7 +456,7 @@ class ReActExecutor:
         tuple[
             ChatCompletionMessageToolCall,
             tuple[str, str],
-            dict,
+            Any,
         ]
     ]:
         if not approved_calls:
@@ -469,7 +465,7 @@ class ReActExecutor:
         with ThreadPoolExecutor(max_workers=len(approved_calls)) as executor:
 
             futures = [
-                executor.submit(self._execute_tool_call, tool_call=tool_call)
+                executor.submit(self.execute_tool_call, tool_call=tool_call)
                 for tool_call, _ in approved_calls
             ]
 
@@ -478,16 +474,10 @@ class ReActExecutor:
                 for (tool_call, signature), future in zip(approved_calls, futures)
             ]
 
-    def _execute_tool_call(
+    def execute_tool_call(
         self,
         tool_call: ChatCompletionMessageToolCall,
-    ) -> dict:
-        print("EXECUTING:", tool_call.function.name)
-
-        start = time.perf_counter()
-
-        print(f"[START {tool_call.function.name}] " f"{start:.4f}")
-
+    ) -> Any:
         tool_name = tool_call.function.name
 
         try:
@@ -527,6 +517,10 @@ class ReActExecutor:
 
                 result = function(**arguments)
 
+                # Non-structured tool result.
+                if not isinstance(result, dict) or "success" not in result:
+                    return result
+
                 if result["success"]:
                     return result
 
@@ -549,10 +543,6 @@ class ReActExecutor:
                     "message": "Tool execution failed",
                 },
             }
-        finally:
-            elapsed = time.perf_counter() - start
-
-            print(f"[END {tool_call.function.name}] " f"{elapsed:.4f}s")
 
     def validate_arguments(
         self,

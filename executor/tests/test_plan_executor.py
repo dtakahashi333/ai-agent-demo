@@ -6,7 +6,6 @@ from executor.plan_executor import PlanExecutionStatus, PlanExecutor, StepStatus
 from executor.react_executor import ReActExecutionResult, ReActExecutor
 from planner.plan import Plan
 from planner.plan_step import PlanStep
-from planner.planning_response import PlannedStep
 from state.agent_state import AgentState
 
 
@@ -190,7 +189,11 @@ class TestExecute(TestCase):
     def setUp(self):
         super().setUp()
         self.steps = [
-            PlanStep(id="A", description="Find customer", dependencies=[]),
+            PlanStep(
+                id="A",
+                description="Find customer",
+                dependencies=[],
+            ),
         ]
         self.plan = Plan(steps=self.steps)
 
@@ -219,12 +222,12 @@ class TestExecute(TestCase):
 
         plan = Plan(
             steps=[
-                PlannedStep(
+                PlanStep(
                     id="step1",
                     description="Find customer",
                     dependencies=[],
                 ),
-                PlannedStep(
+                PlanStep(
                     id="step2",
                     description="Get customer orders",
                     dependencies=["step1"],

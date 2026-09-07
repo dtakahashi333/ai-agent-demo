@@ -5,7 +5,6 @@ from unittest.mock import Mock
 from executor.react_executor import ReActExecutor
 from llm.react_llm import ReActLLM
 from state.agent_state import AgentState
-from tests.utils.client_responses import make_react_client_response
 from tool_registry import build_llm_tools, tool_registry
 from config.settings import config
 
@@ -14,26 +13,16 @@ tools = build_llm_tools(
     config=config,
 )
 
-mock_react_client = Mock()
-mock_react_client.chat.completions.create.return_value = make_react_client_response(
-    content="Customer found",
-    tool_calls=[],
-)
-
 
 class TestRecordToolFailure(TestCase):
     def setUp(self):
         super().setUp()
         self.executor = ReActExecutor(
-            llm_call=ReActLLM(
-                client=mock_react_client,
-                model="test-model",
-                tools=tools,
-            ),
+            llm_call=Mock(spec=ReActLLM),
             config=config,
         )
 
-    def test_record_tool_failure_records_invalid_arguments(self):
+    def test_records_invalid_arguments(self):
         state = AgentState()
 
         signature = 'get_customer:{"customer_id":"abc"}'
@@ -58,7 +47,7 @@ class TestRecordToolFailure(TestCase):
             state.seen_failed_tool_calls,
         )
 
-    def test_record_tool_failure_does_not_record_not_found(self):
+    def test_does_not_record_not_found(self):
         state = AgentState()
 
         signature = 'get_customer:{"customer_id":999}'
@@ -83,7 +72,7 @@ class TestRecordToolFailure(TestCase):
             state.seen_failed_tool_calls,
         )
 
-    def test_record_tool_failure_does_not_record_success(self):
+    def test_does_not_record_success(self):
         state = AgentState()
 
         signature = 'get_customer:{"customer_id":42}'

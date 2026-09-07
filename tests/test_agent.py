@@ -17,6 +17,26 @@ tools = build_llm_tools(
     config=config,
 )
 
+"""
+TestReActLLM
+    mock → OpenAI client
+
+TestReActExecutor
+    mock → ReActLLM
+
+TestPlanExecutor
+    mock → ReActExecutor
+
+TestAgentRunner
+    mock → Planner + ReActExecutor
+
+TestPlanner
+    mock → PlannerLLM
+
+TestPlannerLLM
+    mock → OpenAI client
+"""
+
 
 class TestAgent(TestCase):
     def test_runs_successfully(self):

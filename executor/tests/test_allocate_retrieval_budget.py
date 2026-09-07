@@ -2,11 +2,14 @@
 from unittest import TestCase
 from unittest.mock import Mock
 
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+)
+
 from executor.react_executor import ReActExecutor
 from llm.react_llm import ReActLLM
 from state.agent_state import AgentState
 from config.settings import config
-from tests.utils.client_responses import make_react_client_response
 from tool_registry import build_llm_tools, tool_registry
 
 tools = build_llm_tools(
@@ -14,36 +17,31 @@ tools = build_llm_tools(
     config=config,
 )
 
-mock_react_client = Mock()
-mock_react_client.chat.completions.create.return_value = make_react_client_response(
-    content="Customer found",
-    tool_calls=[],
-)
-
 
 class TestAllocateRetrievalBudget(TestCase):
     def setUp(self):
         super().setUp()
-        config["page_size"] = 5
-        config["max_retrieved_results"] = 10
+        self.config = config.copy()
+        self.config["page_size"] = 5
+        self.config["max_retrieved_results"] = 10
         self.executor = ReActExecutor(
-            llm_call=ReActLLM(
-                client=mock_react_client,
-                model="test-model",
-                tools=tools,
-            ),
-            config=config,
+            llm_call=Mock(spec=ReActLLM),
+            config=self.config,
+        )
+        self.tool_call = ChatCompletionMessageToolCall(
+            id="call_1",
+            type="function",
+            function={
+                "name": "search_customers",
+                "arguments": '{"name": "Alice"}',
+            },
         )
 
     def test_retrieval_budget_uses_agent_state(self):
         state = AgentState(retrieved_count=5)
 
-        tool_call = Mock()
-        tool_call.id = "call_1"
-        tool_call.function.name = "search_customers"
-
         allowed_call_ids = self.executor.allocate_retrieval_budget(
-            [tool_call],
+            [self.tool_call],
             state.retrieved_count,
         )
 
@@ -55,12 +53,8 @@ class TestAllocateRetrievalBudget(TestCase):
     def test_retrieval_budget_rejects_when_state_budget_is_insufficient(self):
         state = AgentState(retrieved_count=6)
 
-        tool_call = Mock()
-        tool_call.id = "call_1"
-        tool_call.function.name = "search_customers"
-
         allowed_call_ids = self.executor.allocate_retrieval_budget(
-            [tool_call],
+            [self.tool_call],
             state.retrieved_count,
         )
 

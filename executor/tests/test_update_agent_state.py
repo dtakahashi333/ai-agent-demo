@@ -2,6 +2,10 @@
 from unittest import TestCase
 from unittest.mock import Mock
 
+from openai.types.chat.chat_completion_message_tool_call import (
+    ChatCompletionMessageToolCall,
+)
+
 from executor.react_executor import ReActExecutor
 from llm.react_llm import ReActLLM
 from state.agent_state import AgentState
@@ -26,43 +30,24 @@ class TestUpdateAgentState(TestCase):
     def setUp(self):
         super().setUp()
         self.executor = ReActExecutor(
-            llm_call=ReActLLM(
-                client=mock_react_client,
-                model="test-model",
-                tools=tools,
-            ),
+            llm_call=Mock(spec=ReActLLM),
             config=config,
         )
 
-    def test_get_customer_failure_does_not_select_customer(self):
-        state = AgentState()
-
-        tool_call = Mock()
-        tool_call.function.name = "get_customer"
-
-        result = {
-            "success": False,
-            "data": None,
-            "error": {
-                "type": "not_found",
-                "message": "Customer was not found",
+    def make_tool_call(self, name: str) -> ChatCompletionMessageToolCall:
+        return ChatCompletionMessageToolCall(
+            id="test_call",
+            type="function",
+            function={
+                "name": name,
+                "arguments": "{}",
             },
-        }
-
-        # Invoke update_agent_state(...)
-        self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
         )
-
-        self.assertIsNone(state.retrieved_customer)
 
     def test_get_customer_success_selects_customer(self):
         state = AgentState()
 
-        tool_call = Mock()
-        tool_call.function.name = "get_customer"
+        tool_call = self.make_tool_call(name="get_customer")
 
         result = {
             "success": True,
@@ -77,25 +62,16 @@ class TestUpdateAgentState(TestCase):
 
         # Invoke update_agent_state(...)
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
+            state=state,
+            tool_call=tool_call,
+            result=result,
         )
 
         self.assertIsNotNone(state.retrieved_customer)
         self.assertEqual(state.retrieved_customer.id, 42)
-        self.assertEqual(
-            state.retrieved_customer.name,
-            "Alice Smith",
-        )
-        self.assertEqual(
-            state.retrieved_customer.email,
-            "alice@example.com",
-        )
-        self.assertEqual(
-            state.retrieved_customer.plan,
-            "premium",
-        )
+        self.assertEqual(state.retrieved_customer.name, "Alice Smith")
+        self.assertEqual(state.retrieved_customer.email, "alice@example.com")
+        self.assertEqual(state.retrieved_customer.plan, "premium")
 
     def test_get_customer_success_replaces_existing_customer(self):
         state = AgentState(
@@ -107,8 +83,7 @@ class TestUpdateAgentState(TestCase):
             )
         )
 
-        tool_call = Mock()
-        tool_call.function.name = "get_customer"
+        tool_call = self.make_tool_call(name="get_customer")
 
         result = {
             "success": True,
@@ -122,27 +97,18 @@ class TestUpdateAgentState(TestCase):
         }
 
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
+            state=state,
+            tool_call=tool_call,
+            result=result,
         )
 
         self.assertIsNotNone(state.retrieved_customer)
         self.assertEqual(state.retrieved_customer.id, 84)
-        self.assertEqual(
-            state.retrieved_customer.name,
-            "Bob Jones",
-        )
-        self.assertEqual(
-            state.retrieved_customer.email,
-            "bob@example.com",
-        )
-        self.assertEqual(
-            state.retrieved_customer.plan,
-            "basic",
-        )
+        self.assertEqual(state.retrieved_customer.name, "Bob Jones")
+        self.assertEqual(state.retrieved_customer.email, "bob@example.com")
+        self.assertEqual(state.retrieved_customer.plan, "basic")
 
-    def test_get_customer_failure_preserves_existing_customer(self):
+    def test_get_customer_failure_preserves_customer(self):
         customer = Customer(
             id=42,
             name="Alice Smith",
@@ -152,8 +118,7 @@ class TestUpdateAgentState(TestCase):
 
         state = AgentState(retrieved_customer=customer)
 
-        tool_call = Mock()
-        tool_call.function.name = "get_customer"
+        tool_call = self.make_tool_call(name="get_customer")
 
         result = {
             "success": False,
@@ -165,27 +130,20 @@ class TestUpdateAgentState(TestCase):
         }
 
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
+            state=state,
+            tool_call=tool_call,
+            result=result,
         )
 
         self.assertIsNotNone(state.retrieved_customer)
         self.assertEqual(state.retrieved_customer.id, 42)
-        self.assertEqual(
-            state.retrieved_customer.email,
-            "alice@example.com",
-        )
-        self.assertEqual(
-            state.retrieved_customer.plan,
-            "premium",
-        )
+        self.assertEqual(state.retrieved_customer.email, "alice@example.com")
+        self.assertEqual(state.retrieved_customer.plan, "premium")
 
     def test_search_customers_adds_retrieved_count(self):
         state = AgentState()
 
-        tool_call = Mock()
-        tool_call.function.name = "search_customers"
+        tool_call = self.make_tool_call(name="search_customers")
 
         result = {
             "success": True,
@@ -217,9 +175,9 @@ class TestUpdateAgentState(TestCase):
         }
 
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
+            state=state,
+            tool_call=tool_call,
+            result=result,
         )
 
         self.assertEqual(state.retrieved_count, 3)
@@ -227,8 +185,7 @@ class TestUpdateAgentState(TestCase):
     def test_search_customers_accumulates_retrieved_count(self):
         state = AgentState()
 
-        tool_call = Mock()
-        tool_call.function.name = "search_customers"
+        tool_call = self.make_tool_call(name="search_customers")
 
         first_result = {
             "success": True,
@@ -258,49 +215,25 @@ class TestUpdateAgentState(TestCase):
         }
 
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            first_result,
+            state=state,
+            tool_call=tool_call,
+            result=first_result,
         )
 
         self.assertEqual(state.retrieved_count, 3)
 
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            second_result,
+            state=state,
+            tool_call=tool_call,
+            result=second_result,
         )
 
         self.assertEqual(state.retrieved_count, 5)
 
-    def test_search_customers_failure_does_not_increment_retrieved_count(self):
-        state = AgentState()
-
-        tool_call = Mock()
-        tool_call.function.name = "search_customers"
-
-        result = {
-            "success": False,
-            "data": None,
-            "error": {
-                "type": "database_error",
-                "message": "Unable to retrieve customers",
-            },
-        }
-
-        self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
-        )
-
-        self.assertEqual(state.retrieved_count, 0)
-
     def test_search_customers_failure_preserves_retrieved_count(self):
         state = AgentState(retrieved_count=5)
 
-        tool_call = Mock()
-        tool_call.function.name = "search_customers"
+        tool_call = self.make_tool_call(name="search_customers")
 
         result = {
             "success": False,
@@ -312,9 +245,9 @@ class TestUpdateAgentState(TestCase):
         }
 
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
+            state=state,
+            tool_call=tool_call,
+            result=result,
         )
 
         self.assertEqual(state.retrieved_count, 5)
@@ -322,8 +255,7 @@ class TestUpdateAgentState(TestCase):
     def test_get_customer_does_not_change_retrieved_count(self):
         state = AgentState(retrieved_count=5)
 
-        tool_call = Mock()
-        tool_call.function.name = "get_customer"
+        tool_call = self.make_tool_call(name="get_customer")
 
         result = {
             "success": True,
@@ -337,9 +269,9 @@ class TestUpdateAgentState(TestCase):
         }
 
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
+            state=state,
+            tool_call=tool_call,
+            result=result,
         )
 
         self.assertEqual(state.retrieved_count, 5)
@@ -347,8 +279,7 @@ class TestUpdateAgentState(TestCase):
     def test_search_customers_does_not_select_customer(self):
         state = AgentState()
 
-        tool_call = Mock()
-        tool_call.function.name = "search_customers"
+        tool_call = self.make_tool_call(name="search_customers")
 
         result = {
             "success": True,
@@ -368,9 +299,9 @@ class TestUpdateAgentState(TestCase):
         }
 
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
+            state=state,
+            tool_call=tool_call,
+            result=result,
         )
 
         self.assertEqual(state.retrieved_count, 1)
@@ -381,8 +312,7 @@ class TestUpdateAgentState(TestCase):
             retrieved_count=5,
         )
 
-        tool_call = Mock()
-        tool_call.function.name = "get_weather"
+        tool_call = self.make_tool_call(name="get_weather")
 
         result = {
             "success": True,
@@ -394,9 +324,9 @@ class TestUpdateAgentState(TestCase):
         }
 
         self.executor.update_agent_state(
-            state,
-            tool_call,
-            result,
+            state=state,
+            tool_call=tool_call,
+            result=result,
         )
 
         self.assertEqual(state.retrieved_count, 5)

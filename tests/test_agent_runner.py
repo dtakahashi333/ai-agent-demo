@@ -3,7 +3,7 @@ from unittest import TestCase
 from unittest.mock import Mock
 
 from agent_runner import AgentRunner
-from executor.plan_executor import  PlanExecutionStatus
+from executor.plan_executor import PlanExecutionStatus
 from executor.react_executor import ReActExecutionResult, ReActExecutor
 from planner.plan import Plan
 from planner.plan_step import PlanStep

@@ -42,36 +42,52 @@ def get_weather(city: str) -> dict:
     """
     Get the current weather for a city using Open-Meteo API.
     """
-    location = get_geolocation(city)
+    try:
+        location = get_geolocation(city)
 
-    weather_url = "https://api.open-meteo.com/v1/forecast"
-    weather_params = {
-        "latitude": location["latitude"],
-        "longitude": location["longitude"],
-        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
-        "temperature_unit": "fahrenheit",
-        "wind_speed_unit": "mph",
-    }
-    weather_response = requests.get(
-        weather_url,
-        params=weather_params,
-        timeout=10,
-    )
-    weather_response.raise_for_status()
-    weather_data = weather_response.json()
-
-    current = weather_data["current"]
-
-    return {
-        "success": True,
-        "data": {
-            "city": location["name"],
-            "temperature": current["temperature_2m"],
-            "temperature_unit": "°F",
-            "humidity": current["relative_humidity_2m"],
-            "wind_speed": current["wind_speed_10m"],
+        weather_url = "https://api.open-meteo.com/v1/forecast"
+        weather_params = {
+            "latitude": location["latitude"],
+            "longitude": location["longitude"],
+            "current": (
+                "temperature_2m,"
+                "relative_humidity_2m,"
+                "wind_speed_10m,"
+                "weather_code"
+            ),
+            "temperature_unit": "fahrenheit",
             "wind_speed_unit": "mph",
-            "weather_code": current["weather_code"],
-        },
-        "error": None,
-    }
+        }
+
+        weather_response = requests.get(
+            weather_url,
+            params=weather_params,
+            timeout=10,
+        )
+        weather_response.raise_for_status()
+
+        current = weather_response.json()["current"]
+
+        return {
+            "success": True,
+            "data": {
+                "city": location["name"],
+                "temperature": current["temperature_2m"],
+                "temperature_unit": "°F",
+                "humidity": current["relative_humidity_2m"],
+                "wind_speed": current["wind_speed_10m"],
+                "wind_speed_unit": "mph",
+                "weather_code": current["weather_code"],
+            },
+            "error": None,
+        }
+
+    except requests.RequestException:
+        return {
+            "success": False,
+            "data": None,
+            "error": {
+                "type": "external_service_error",
+                "message": "Unable to retrieve weather",
+            },
+        }

@@ -279,7 +279,7 @@ def get_customer_orders(customer_id: int) -> dict:
                         "data": None,
                         "error": {
                             "type": "not_found",
-                            "message": "Order was not found",
+                            "message": "No orders were found for customer",
                         },
                     }
 

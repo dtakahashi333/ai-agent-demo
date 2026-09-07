@@ -110,12 +110,14 @@ class AgentState:
     def initialize_messages(
         self,
         system_prompt: str,
+        context: str,
     ) -> None:
         """
         Start the state for a new agent run.
         """
         self.messages = [
             {"role": "system", "content": system_prompt},
+            {"role": "system", "content": context},
         ]
 
     def reset_iteration(self) -> None:
@@ -123,3 +125,17 @@ class AgentState:
 
     def has_selected_customer(self) -> bool:
         return self.retrieved_customer is not None
+
+    def get_context(self) -> str:
+        parts = []
+
+        if self.retrieved_customer is not None:
+            parts.append(
+                "Customer:\n"
+                f"id: {self.retrieved_customer.id}\n"
+                f"name: {self.retrieved_customer.name}\n"
+                f"email: {self.retrieved_customer.email}\n"
+                f"plan: {self.retrieved_customer.plan}"
+            )
+
+        return "\n\n".join(parts)

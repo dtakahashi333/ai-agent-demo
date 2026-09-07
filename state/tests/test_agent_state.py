@@ -196,18 +196,11 @@ class TestAgentState(TestCase):
         state = AgentState()
 
         state.initialize_messages(
-            system_prompt="You are a helpful assistant.",
+            system_prompt="You are a helpful assistant.", context="Customer: Alice"
         )
 
-        self.assertEqual(
-            state.messages,
-            [
-                {
-                    "role": "system",
-                    "content": "You are a helpful assistant.",
-                },
-            ],
-        )
+        self.assertEqual(state.messages[0]["role"], "system")
+        self.assertEqual(state.messages[0]["content"], "You are a helpful assistant.")
 
     def test_initialize_messages_replaces_existing_messages(self):
         state = AgentState(
@@ -219,16 +212,30 @@ class TestAgentState(TestCase):
             ]
         )
 
-        state.initialize_messages(
-            system_prompt="System",
+        state.initialize_messages(system_prompt="System", context="")
+
+        self.assertEqual(state.messages[0]["role"], "system")
+        self.assertEqual(state.messages[0]["content"], "System")
+
+
+class TestAgentStateContext(TestCase):
+    def test_returns_empty_context_when_no_semantic_state(self):
+        state = AgentState()
+
+        self.assertEqual("", state.get_context())
+
+    def test_includes_retrieved_customer(self):
+        state = AgentState(
+            retrieved_customer=Customer(
+                id=1,
+                name="Alice",
+                email="alice@example.com",
+                plan="pro",
+            )
         )
 
-        self.assertEqual(
-            state.messages,
-            [
-                {
-                    "role": "system",
-                    "content": "System",
-                },
-            ],
-        )
+        context = state.get_context()
+
+        self.assertIn("Alice", context)
+        self.assertIn("alice@example.com", context)
+        self.assertIn("pro", context)

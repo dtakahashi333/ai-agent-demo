@@ -190,4 +190,8 @@ def build_agent_system_prompt(config) -> str:
         "in parallel. Do not wait for one independent call to finish before "
         "requesting another.\n"
     )
+    agent_policy += (
+        "When relevant information is already available in the current agent context, "
+        "use it instead of unnecessarily calling a tool to retrieve the same information again."
+    )
     return AGENT_SYSTEM_PROMPT + "\n\n" + agent_policy

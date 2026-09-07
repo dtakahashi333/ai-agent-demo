@@ -4,7 +4,6 @@ from unittest.mock import Mock
 
 from executor.react_executor import ReActExecutor
 from llm.react_llm import ReActLLM
-from tests.utils.client_responses import make_react_client_response
 from tool_registry import build_llm_tools, tool_registry
 from config.settings import config
 
@@ -13,51 +12,40 @@ tools = build_llm_tools(
     config=config,
 )
 
-mock_react_client = Mock()
-mock_react_client.chat.completions.create.return_value = make_react_client_response(
-    content="Customer found",
-    tool_calls=[],
-)
-
 
 class TestValidateArguments(TestCase):
     def setUp(self):
         super().setUp()
         self.executor = ReActExecutor(
-            llm_call=ReActLLM(
-                client=mock_react_client,
-                model="test-model",
-                tools=tools,
-            ),
+            llm_call=Mock(spec=ReActLLM),
             config=config,
         )
 
-    def test_validate_arguments1(self):
+    def test_accepts_valid_customer_arguments(self):
         result = self.executor.validate_arguments(
             "get_customer",
-            {
-                "customer_id": 1,
-            },
+            {"customer_id": 1},
         )
+
         self.assertTrue(result["success"])
 
-    def test_validate_arguments2(self):
+    def test_rejects_wrong_argument_type(self):
         result = self.executor.validate_arguments(
             "get_customer",
-            {
-                "customer_id": "abc",
-            },
+            {"customer_id": "abc"},
         )
+
         self.assertFalse(result["success"])
 
-    def test_validate_arguments3(self):
+    def test_rejects_missing_required_argument(self):
         result = self.executor.validate_arguments(
             "get_customer",
             {},
         )
+
         self.assertFalse(result["success"])
 
-    def test_validate_arguments4(self):
+    def test_rejects_unexpected_argument(self):
         result = self.executor.validate_arguments(
             "get_customer",
             {
@@ -65,13 +53,13 @@ class TestValidateArguments(TestCase):
                 "foo": "bar",
             },
         )
+
         self.assertFalse(result["success"])
 
-    def test_validate_arguments5(self):
+    def test_accepts_valid_weather_arguments(self):
         result = self.executor.validate_arguments(
             "get_weather",
-            {
-                "city": "Dallas",
-            },
+            {"city": "Dallas"},
         )
+
         self.assertTrue(result["success"])
