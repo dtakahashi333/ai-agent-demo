@@ -1,9 +1,13 @@
 # agent_runner.py
+import logging
+
 from executor.plan_executor import PlanExecutionStatus, PlanExecutor
 from executor.react_executor import ReActExecutor
 from planner.planner import Planner
 from planner.replanner import Replanner
 from state.agent_state import AgentState
+
+logger = logging.getLogger(__name__)
 
 
 class AgentRunner:
@@ -22,6 +26,13 @@ class AgentRunner:
         self.max_replans = max_replans
 
     def run(self, objective: str) -> str:
+        logger.info(
+            "Planning agent execution",
+            extra={
+                "objective": objective,
+            },
+        )
+
         state = AgentState()
 
         plan = self.planner.plan(
@@ -29,7 +40,21 @@ class AgentRunner:
             capabilities=self.capabilities,
         )
 
+        logger.info(
+            "Initial plan created",
+            extra={
+                "step_count": len(plan.steps),
+            },
+        )
+
         for attempt in range(self.max_replans + 1):
+            logger.info(
+                "Plan execution started",
+                extra={
+                    "attempt": attempt,
+                },
+            )
+
             plan_executor = PlanExecutor(
                 plan=plan,
                 react_executor=self.react_executor,
@@ -39,6 +64,15 @@ class AgentRunner:
 
             if execution_result.status == PlanExecutionStatus.COMPLETED:
                 return execution_result.response
+
+            logger.warning(
+                "Plan execution requires replanning",
+                extra={
+                    "attempt": attempt,
+                    "completed_steps": list(execution_result.completed_steps),
+                    "failed_steps": execution_result.failed_steps,
+                },
+            )
 
             if attempt == self.max_replans:
                 break
@@ -51,6 +85,21 @@ class AgentRunner:
                 state=state,
             )
 
+            logger.info(
+                "Replanned plan created",
+                extra={
+                    "attempt": attempt,
+                    "step_count": len(plan.steps),
+                },
+            )
+
+        logger.error(
+            "Agent execution failed after maximum replanning attempts",
+            extra={
+                "max_replans": self.max_replans,
+                "failed_steps": execution_result.failed_steps,
+            },
+        )
         raise RuntimeError(
             f"Agent execution failed after {self.max_replans} replanning attempt(s). "
             f"Failed steps: {execution_result.failed_steps}"

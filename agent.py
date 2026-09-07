@@ -1,5 +1,8 @@
 # agent.py
+import logging
+from logging.handlers import RotatingFileHandler
 import os
+from pathlib import Path
 
 from openai import OpenAI
 from dotenv import load_dotenv
@@ -15,6 +18,27 @@ from planner.replanner import Replanner
 from tool_registry import build_llm_tools, tool_registry
 
 load_dotenv()
+
+LOG_DIR = Path("logs")
+LOG_DIR.mkdir(exist_ok=True)
+
+file_handler = RotatingFileHandler(
+    LOG_DIR / "agent.log",
+    maxBytes=5_000_000,
+    backupCount=3,
+)
+
+console_handler = logging.StreamHandler()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+    handlers=[
+        console_handler,
+        file_handler,
+    ],
+    force=True,
+)
 
 # Tool definitions sent to the LLM
 tools = build_llm_tools(tool_registry, config)

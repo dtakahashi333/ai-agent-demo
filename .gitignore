@@ -52,6 +52,7 @@ dist/
 Thumbs.db
 
 # Logs
+logs/
 *.log
 
 # Local data / generated files
