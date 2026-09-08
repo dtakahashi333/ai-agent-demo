@@ -1,0 +1,38 @@
+CREATE TABLE agent.customers (
+	id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	name TEXT NOT NULL,
+	email TEXT NOT NULL,
+	plan TEXT NOT NULL,
+	idempotency_key TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE agent.orders (
+	id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+	customer_id BIGINT NOT NULL,
+	status TEXT NOT NULL,
+	total REAL NOT NULL,
+	idempotency_key TEXT UNIQUE NOT NULL,
+
+	CONSTRAINT fk_orders_customer
+		FOREIGN KEY (customer_id)
+		REFERENCES agent.customers(id)
+);
+
+ALTER TABLE agent.customers OWNER TO agent_demo_owner;
+ALTER TABLE agent.orders OWNER TO agent_demo_owner;
+
+REVOKE CONNECT ON DATABASE agent_demo FROM PUBLIC;
+REVOKE ALL ON SCHEMA agent FROM PUBLIC;
+REVOKE ALL ON ALL TABLES IN SCHEMA agent FROM PUBLIC;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA agent FROM PUBLIC;
+
+GRANT CONNECT ON DATABASE agent_demo TO agent_demo_user;
+GRANT USAGE ON SCHEMA agent TO agent_demo_user;
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+ON ALL TABLES IN SCHEMA agent
+TO agent_demo_user;
+
+GRANT USAGE, SELECT
+ON ALL SEQUENCES IN SCHEMA agent
+TO agent_demo_user;

@@ -1,7 +1,7 @@
 # executor/react_executor.py
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from enum import StrEnum
+from enum import Enum, StrEnum
 import json
 import time
 from typing import Any
@@ -14,6 +14,12 @@ from openai.types.chat.chat_completion_message_tool_call import (
 from state.agent_state import AgentState
 from tool_registry import tool_registry
 from prompts.agent_prompt import build_agent_system_prompt
+
+
+class ToolExecutionStatus(Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+    CONFIRMATION_REQUIRED = "confirmation_required"
 
 
 @dataclass

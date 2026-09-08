@@ -10,9 +10,25 @@ from tools.database import (
     get_order,
     get_order_status,
     search_customers,
+    create_order,
 )
 from tools.rag import search_documents
 from tools.weather import get_weather
+
+"""
+| Tool                | Side effect | Retryable | Confirmation |
+|---------------------|-------------|-----------|--------------|
+| calculator          | No          | Yes       | No           |
+| search_documents    | No          | Yes       | No           |
+| get_weather         | No          | Yes       | No           |
+| get_customer        | No          | Yes       | No           |
+| get_order           | No          | Yes       | No           |
+| get_order_status    | No          | Yes       | No           |
+| search_customers    | No          | Yes       | No           |
+| get_customer_orders | No          | Yes       | No           |
+| count_customers     | No          | Yes       | No           |
+| create_order        | Yes         | Yes       | Yes          |
+"""
 
 tool_registry = {
     "calculator": {
@@ -33,6 +49,8 @@ tool_registry = {
             "additionalProperties": False,
         },
         "retryable": True,
+        "side_effect": False,
+        "requires_confirmation": False,
     },
     "search_documents": {
         "function": search_documents,
@@ -49,6 +67,8 @@ tool_registry = {
             "additionalProperties": False,
         },
         "retryable": True,
+        "side_effect": False,
+        "requires_confirmation": False,
     },
     "get_weather": {
         "function": get_weather,
@@ -62,6 +82,8 @@ tool_registry = {
             "additionalProperties": False,
         },
         "retryable": True,
+        "side_effect": False,
+        "requires_confirmation": False,
     },
     "get_customer": {
         "function": get_customer,
@@ -78,6 +100,8 @@ tool_registry = {
             "additionalProperties": False,
         },
         "retryable": True,
+        "side_effect": False,
+        "requires_confirmation": False,
     },
     "get_order": {
         "function": get_order,
@@ -94,6 +118,8 @@ tool_registry = {
             "additionalProperties": False,
         },
         "retryable": True,
+        "side_effect": False,
+        "requires_confirmation": False,
     },
     "get_order_status": {
         "function": get_order_status,
@@ -110,6 +136,8 @@ tool_registry = {
             "additionalProperties": False,
         },
         "retryable": True,
+        "side_effect": False,
+        "requires_confirmation": False,
     },
     "search_customers": {
         "function": search_customers,
@@ -130,6 +158,8 @@ tool_registry = {
             "additionalProperties": False,
         },
         "retryable": True,
+        "side_effect": False,
+        "requires_confirmation": False,
     },
     "get_customer_orders": {
         "function": get_customer_orders,
@@ -146,6 +176,8 @@ tool_registry = {
             "additionalProperties": False,
         },
         "retryable": True,
+        "side_effect": False,
+        "requires_confirmation": False,
     },
     "count_customers": {
         "function": count_customers,
@@ -162,6 +194,49 @@ tool_registry = {
             "additionalProperties": False,
         },
         "retryable": True,
+        "side_effect": False,
+        "requires_confirmation": False,
+    },
+    "create_order": {
+        "function": create_order,
+        "description": (
+            "Create a new order for a customer. "
+            "This operation creates a side effect and requires an idempotency key."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "customer_id": {
+                    "type": "integer",
+                    "description": "The customer ID.",
+                },
+                "status": {
+                    "type": "string",
+                    "description": "The initial status of the order.",
+                },
+                "total": {
+                    "type": "number",
+                    "description": "The total order amount.",
+                },
+                "idempotency_key": {
+                    "type": "string",
+                    "description": (
+                        "Stable key identifying this logical order creation. "
+                        "Reuse the same key if the operation is retried or replanned."
+                    ),
+                },
+            },
+            "required": [
+                "customer_id",
+                "status",
+                "total",
+                "idempotency_key",
+            ],
+            "additionalProperties": False,
+        },
+        "retryable": True,
+        "side_effect": True,
+        "requires_confirmation": True,
     },
 }
 
